@@ -37,7 +37,7 @@ test("coffee → recipe → guided brew → rate → brew again", async ({ page 
   // Pause and resume, then advance manually through the remaining steps.
   await page.getByRole("button", { name: /pause/i }).click();
   await expect(page.locator(".live-status")).toHaveText(/paused/i);
-  await page.getByRole("button", { name: /^▶ resume$/i }).click();
+  await page.locator(".live-pause").click();
   for (let i = 0; i < 4; i++) await page.locator(".live-controls .primary").click();
   await expect(page.locator(".live-instruction", { hasText: "Swirl and serve" })).toBeVisible();
 

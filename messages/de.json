@@ -509,7 +509,12 @@
     },
     "restored": "Deine Zubereitung wurde wiederhergestellt – die Zeit lief im Hintergrund weiter.",
     "brewTime": "Brühzeit",
-    "stepOf": "{number} / {count}",
+    "stepLabel": "Schritt {number} / {count}",
+    "total": "Gesamt {time}",
+    "dose": "Kaffee",
+    "water": "Wasser",
+    "temperature": "Temperatur",
+    "grind": "Mahlgrad",
     "pourTo": "Aufgießen bis",
     "add": "{grams} dazu",
     "remaining": "Verbleibend",
@@ -668,6 +673,12 @@
       "light": "Hell",
       "dark": "Dunkel",
       "system": "System"
+    },
+    "palette": "Farben",
+    "paletteHint": "Gilt für die ganze App, hell und dunkel.",
+    "palettes": {
+      "classic": "Klassisch",
+      "roast": "Röstung"
     },
     "data": "Deine Daten",
     "exportHint": "Alles, was du eingegeben hast, als eine JSON-Datei.",

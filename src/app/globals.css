@@ -1,8 +1,9 @@
 /* ---------------------------------------------------------------------------
    BrewCore design tokens. Light palette on :root; dark overrides follow, for
    both an explicit choice and the system preference (NutriCore's theme
-   architecture, BrewCore's own palette). Deliberately not brown: a cool
-   neutral base with one teal accent, tuned for contrast.
+   architecture, BrewCore's own palette). The default "classic" palette is
+   deliberately not brown: a cool neutral base with one teal accent, tuned for
+   contrast. The opt-in "roast" palette (data-palette="roast") follows below.
    --------------------------------------------------------------------------- */
 :root {
   color-scheme: light;
@@ -33,6 +34,11 @@
   --radius: 16px;
   --radius-sm: 10px;
   --tap: 48px;
+  --accent-shadow: rgba(11, 110, 106, 0.35);
+  --vessel: #e4eaee;
+  --liquid: #b9e0dc;
+  --liquid-crest: #d8efed;
+  --ring-track: #dde2e6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -62,6 +68,11 @@
     --success-bg: #183322;
     --focus: #7fb6ff;
     --shadow: none;
+    --accent-shadow: rgba(0, 0, 0, 0.45);
+    --vessel: #1f252a;
+    --liquid: #1b4a47;
+    --liquid-crest: #24605c;
+    --ring-track: #2b3238;
   }
 }
 
@@ -91,6 +102,80 @@
   --success-bg: #183322;
   --focus: #7fb6ff;
   --shadow: none;
+  --accent-shadow: rgba(0, 0, 0, 0.45);
+  --vessel: #1f252a;
+  --liquid: #1b4a47;
+  --liquid-crest: #24605c;
+  --ring-track: #2b3238;
+}
+
+/* Roast: warm espresso browns with a caramel accent. Opt-in only (§70). */
+:root[data-palette="roast"] {
+  --bg: #f4eee6;
+  --surface: #fffcf7;
+  --surface-2: #ede3d6;
+  --text: #1e1611;
+  --text-muted: #65564a;
+  --accent: #8a4b1f;
+  --accent-hover: #733d18;
+  --accent-contrast: #ffffff;
+  --accent-soft: #f2dec7;
+  --accent-soft-text: #5a2f12;
+  --warm: #9a5b12;
+  --warm-soft: #fbefdf;
+  --line: #e2d5c5;
+  --line-strong: #cdbba6;
+  --accent-shadow: rgba(138, 75, 31, 0.35);
+  --vessel: #e8dccd;
+  --liquid: #d7b48e;
+  --liquid-crest: #e6cba9;
+  --ring-track: #e2d5c5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="roast"]:not([data-theme="light"]) {
+    --bg: #15110e;
+    --surface: #221b16;
+    --surface-2: #2e2520;
+    --text: #f4e9da;
+    --text-muted: #b3a594;
+    --accent: #e8a953;
+    --accent-hover: #f0bd73;
+    --accent-contrast: #15110e;
+    --accent-soft: #3a2a18;
+    --accent-soft-text: #f3cf96;
+    --warm: #e8a953;
+    --warm-soft: #3a2a18;
+    --line: #3a302a;
+    --line-strong: #4d4038;
+    --accent-shadow: rgba(0, 0, 0, 0.5);
+    --vessel: #2a211b;
+    --liquid: #6b4226;
+    --liquid-crest: #7d5031;
+    --ring-track: #2e2520;
+  }
+}
+
+:root[data-palette="roast"][data-theme="dark"] {
+  --bg: #15110e;
+  --surface: #221b16;
+  --surface-2: #2e2520;
+  --text: #f4e9da;
+  --text-muted: #b3a594;
+  --accent: #e8a953;
+  --accent-hover: #f0bd73;
+  --accent-contrast: #15110e;
+  --accent-soft: #3a2a18;
+  --accent-soft-text: #f3cf96;
+  --warm: #e8a953;
+  --warm-soft: #3a2a18;
+  --line: #3a302a;
+  --line-strong: #4d4038;
+  --accent-shadow: rgba(0, 0, 0, 0.5);
+  --vessel: #2a211b;
+  --liquid: #6b4226;
+  --liquid-crest: #7d5031;
+  --ring-track: #2e2520;
 }
 
 *,
@@ -293,7 +378,7 @@ h3 {
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-contrast);
-  box-shadow: 0 6px 18px rgba(11, 110, 106, 0.35);
+  box-shadow: 0 6px 18px var(--accent-shadow);
   font-size: 0.8rem;
 }
 
@@ -986,7 +1071,8 @@ table.data th {
 
 /* ---------------------------------------------------------------------------
    Live brew (§21): readable at arm's length, large targets, no reliance on
-   colour or motion alone.
+   colour or motion alone. The centrepiece is the "vessel": a cup that fills to
+   the recipe's cumulative water target, ringed by the step timer.
    --------------------------------------------------------------------------- */
 .live {
   position: fixed;
@@ -1002,10 +1088,44 @@ table.data th {
 .live-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.live-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
   color: var(--text-muted);
   font-weight: 650;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-round {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.live-round:hover {
+  background: var(--line);
+}
+
+.live-round:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .live-status {
@@ -1019,7 +1139,8 @@ table.data th {
   font-weight: 750;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .live-status[data-status="PAUSED"] {
@@ -1032,46 +1153,226 @@ table.data th {
   color: var(--accent-soft-text);
 }
 
+.live-steps {
+  display: flex;
+  gap: 5px;
+  list-style: none;
+  margin: 12px auto 0;
+  padding: 0;
+  max-width: 640px;
+  width: 100%;
+}
+
+.live-steps li {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+}
+
+.live-steps li[data-state="done"] {
+  background: var(--accent);
+}
+
+.live-steps li[data-state="current"] {
+  background: var(--text);
+}
+
 .live-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
   text-align: center;
-  gap: 14px;
+  gap: 12px;
   max-width: 640px;
   width: 100%;
   margin: 0 auto;
-}
-
-.live-clock {
-  font-size: clamp(4.5rem, 22vw, 9rem);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  letter-spacing: -0.02em;
+  padding-top: 8px;
 }
 
 .live-step-label {
-  font-size: 1.1rem;
-  font-weight: 800;
+  font-size: 0.85rem;
+  font-weight: 750;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.18em;
   color: var(--accent);
 }
 
+.live-step-type {
+  font-size: clamp(1.6rem, 7vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  margin: 2px 0 4px;
+}
+
 .live-instruction {
-  font-size: clamp(1.5rem, 6vw, 2.2rem);
-  font-weight: 750;
-  line-height: 1.25;
+  font-size: clamp(1.05rem, 4.4vw, 1.35rem);
+  font-weight: 600;
+  line-height: 1.3;
   margin: 0;
+  color: var(--text-muted);
+}
+
+.live-vessel {
+  position: relative;
+  /* Shrinks on short screens so the controls stay in reach. */
+  width: min(300px, 72vw, 32vh);
+  min-width: 200px;
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+.live-vessel svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.vessel-body {
+  fill: var(--vessel);
+}
+
+.vessel-liquid {
+  fill: var(--liquid);
+  transition: transform 900ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+.vessel-crest {
+  fill: var(--liquid-crest);
+}
+
+.vessel-wave {
+  animation: vessel-wave 5s linear infinite;
+  animation-play-state: paused;
+}
+
+.live-vessel[data-running="true"] .vessel-wave {
+  animation-play-state: running;
+}
+
+@keyframes vessel-wave {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-160px);
+  }
+}
+
+.vessel-marker {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.vessel-marker-label {
+  fill: var(--accent);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.vessel-track {
+  fill: none;
+  stroke: var(--ring-track);
+  stroke-width: 7;
+}
+
+.vessel-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 250ms linear;
+}
+
+.vessel-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.live-clock {
+  font-size: clamp(3rem, 16vw, 4.6rem);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.live-clock-sub {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  text-align: left;
+}
+
+.live-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.live-card-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 .live-target {
-  font-size: clamp(2.4rem, 12vw, 4rem);
+  font-size: clamp(1.8rem, 8vw, 2.2rem);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  line-height: 1.05;
+  line-height: 1.1;
+}
+
+.live-add {
+  font-size: 0.9rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.live-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-facts li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.live-facts svg {
+  flex: none;
+  color: var(--accent);
 }
 
 .live-subtle {
@@ -1084,8 +1385,8 @@ table.data th {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px 24px;
-  font-size: 1.1rem;
+  gap: 8px 16px;
+  font-size: 1rem;
 }
 
 .live-info strong {
@@ -1093,54 +1394,79 @@ table.data th {
 }
 
 .live-next {
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
   color: var(--text-muted);
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
-.live-progress {
-  height: 10px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  overflow: hidden;
-}
-
-.live-progress > span {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  transition: width 250ms linear;
+.live-next strong {
+  color: var(--text);
 }
 
 .live-controls {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  justify-items: center;
+  gap: 10px 8px;
   max-width: 640px;
   width: 100%;
-  margin: 16px auto 0;
+  margin: 12px auto 0;
 }
 
-.live-controls .btn {
-  min-height: 72px;
-  font-size: 1.1rem;
-  border-radius: var(--radius);
+.live-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 72px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.live-control > span:first-child {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.live-control:hover > span:first-child {
+  background: var(--line);
+}
+
+.live-control:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.live-control.live-pause > span:first-child {
+  width: 64px;
+  height: 64px;
+  background: transparent;
+  border: 2.5px solid var(--accent);
+  color: var(--accent);
+}
+
+.live-control.live-pause:hover > span:first-child {
+  background: var(--accent-soft);
 }
 
 .live-controls .primary {
   grid-column: span 3;
-  min-height: 84px;
-  font-size: 1.4rem;
-}
-
-.live-secondary {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  max-width: 640px;
-  width: 100%;
-  margin: 12px auto 0;
+  justify-self: stretch;
+  min-height: 64px;
+  font-size: 1.25rem;
+  font-weight: 750;
+  border-radius: 20px;
 }
 
 .live-flash {
@@ -1154,6 +1480,71 @@ table.data th {
   to {
     background: var(--bg);
   }
+}
+
+/* Settings: palette picker. */
+.palette-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.palette-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.palette-option[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
+}
+
+.palette-option[aria-pressed="true"] .palette-name::after {
+  content: " ✓";
+}
+
+.palette-swatch {
+  display: inline-flex;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.palette-swatch span {
+  width: 14px;
+  height: 28px;
+}
+
+/* Fixed colours: each swatch previews its palette whatever is active. */
+.palette-option[data-palette-option="classic"] .palette-swatch span:nth-child(1) {
+  background: #f5f6f7;
+}
+.palette-option[data-palette-option="classic"] .palette-swatch span:nth-child(2) {
+  background: #0b6e6a;
+}
+.palette-option[data-palette-option="classic"] .palette-swatch span:nth-child(3) {
+  background: #0f1215;
+}
+.palette-option[data-palette-option="roast"] .palette-swatch span:nth-child(1) {
+  background: #f4eee6;
+}
+.palette-option[data-palette-option="roast"] .palette-swatch span:nth-child(2) {
+  background: #e8a953;
+}
+.palette-option[data-palette-option="roast"] .palette-swatch span:nth-child(3) {
+  background: #15110e;
 }
 
 .post-brew {

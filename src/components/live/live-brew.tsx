@@ -17,12 +17,15 @@ import {
 import { formatClock, formatSeconds } from "@/lib/brewing/timer";
 import { displayGrams } from "@/lib/brewing/scaling";
 import type { StepType } from "@/lib/brewing/recipe";
+import { vesselLevel } from "@/lib/brewing/vessel";
 import { deleteLocalBrew, enqueue, getLocalBrew, putLocalBrew } from "@/lib/offline/db";
 import { warmOfflineCache } from "@/lib/offline/offline-cache";
 import { PwaRuntime, requestSync } from "@/components/pwa-runtime";
 import { useWakeLock } from "./use-wake-lock";
 import { playTone, unlockAudio, vibrate } from "./cues";
 import { PostBrew } from "./post-brew";
+import { Icon } from "./icons";
+import { Vessel } from "./vessel";
 
 const TICK_MS = 250;
 
@@ -264,7 +267,10 @@ export function LiveBrewScreen({ brew, cues }: { brew: LiveBrew; cues: { sound: 
         ? `${formatSeconds(v.step.targetElapsedSeconds)}–${formatSeconds(v.step.targetElapsedMaxSeconds)}`
         : formatSeconds(v.step.targetElapsedSeconds)
       : null;
-  const progress = v.stepRemainingMs !== null && v.step.durationSeconds ? 1 - v.stepRemainingMs / (v.step.durationSeconds * 1000) : null;
+  const showRemaining = v.stepRemainingMs !== null && v.status !== "READY";
+  // Share of the step's time used, for timed steps and steps with a target time alike.
+  const stepProgress = showRemaining ? v.stepElapsedMs / Math.max(1, v.stepElapsedMs + v.stepRemainingMs!) : null;
+  const level = vesselLevel(state.steps, v.stepIndex, v.status, brew.waterTargetG);
 
   let primary: { label: string; onClick: () => void; disabled?: boolean };
   if (v.status === "READY") {
@@ -279,17 +285,27 @@ export function LiveBrewScreen({ brew, cues }: { brew: LiveBrew; cues: { sound: 
     <div className={flash ? "live live-flash" : "live"}>
       <div ref={announcer} className="sr-only" aria-live="assertive" />
       <header className="live-top">
-        <span>
+        <button type="button" className="live-round" onClick={() => abortDialog.current?.showModal()} aria-label={t("cancel")} title={t("cancel")}>
+          <Icon name="close" size={20} />
+        </button>
+        <span className="live-title">
           {brew.snapshot.name}
           {brew.coffeeName ? ` · ${brew.coffeeName}` : ""}
         </span>
-        <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <PwaRuntime />
-          <span className="live-status" data-status={v.status}>
-            {t(`status.${v.status}`)}
-          </span>
+        <PwaRuntime />
+        <span className="live-status" data-status={v.status}>
+          {t(`status.${v.status}`)}
         </span>
+        <button type="button" className="live-round" onClick={openFinish} disabled={!v.can.finish} aria-label={t("finish")} title={t("finish")}>
+          <Icon name="check" size={20} />
+        </button>
       </header>
+
+      <ol className="live-steps" aria-hidden="true">
+        {state.steps.map((step, index) => (
+          <li key={index} data-state={index < v.stepIndex ? "done" : index === v.stepIndex ? "current" : "todo"} />
+        ))}
+      </ol>
 
       {restored ? (
         <p className="notice notice-success" role="status" style={{ maxWidth: 640, margin: "12px auto 0", width: "100%" }}>
@@ -298,43 +314,79 @@ export function LiveBrewScreen({ brew, cues }: { brew: LiveBrew; cues: { sound: 
       ) : null}
 
       <main className="live-main" id="main">
-        <div className="live-clock" role="timer" aria-label={t("brewTime")}>
-          {formatClock(v.brewElapsedMs)}
-        </div>
-
         <div>
-          <div className="live-step-label">
-            {stepLabel} · {t("stepOf", { number: v.stepIndex + 1, count: v.stepCount })}
-          </div>
+          <div className="live-step-label">{t("stepLabel", { number: v.stepIndex + 1, count: v.stepCount })}</div>
+          <h1 className="live-step-type">{stepLabel}</h1>
           <p className="live-instruction">{v.step.instruction}</p>
         </div>
 
-        {v.waterTargetG !== null ? (
-          <div>
-            <div className="live-subtle">{t("pourTo")}</div>
-            <div className="live-target">{grams(v.waterTargetG)}</div>
-            {v.waterAddG !== null && v.waterAddG > 0 ? <div className="live-subtle">{t("add", { grams: grams(v.waterAddG) })}</div> : null}
-          </div>
-        ) : null}
+        <Vessel level={level} stepProgress={stepProgress} running={v.status === "RUNNING"} markerLabel={v.waterTargetG !== null ? grams(v.waterTargetG) : null}>
+          {showRemaining ? (
+            <>
+              <div className="live-clock" role="timer" aria-label={t("remaining")}>
+                {formatClock(v.stepRemainingMs! + 999)}
+              </div>
+              <div className="live-clock-sub">
+                {t("remaining")} · {t("total", { time: formatClock(v.brewElapsedMs) })}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="live-clock" role="timer" aria-label={t("brewTime")}>
+                {formatClock(v.brewElapsedMs)}
+              </div>
+              <div className="live-clock-sub">{t("brewTime")}</div>
+            </>
+          )}
+        </Vessel>
 
-        <div className="live-info">
-          {v.stepRemainingMs !== null && v.status !== "READY" ? (
-            <span>
-              {t("remaining")} <strong>{formatClock(v.stepRemainingMs + 999)}</strong>
-            </span>
+        <div className="live-cards">
+          {v.waterTargetG !== null ? (
+            <div className="live-card">
+              <span className="live-card-label">{t("pourTo")}</span>
+              <span className="live-target">{grams(v.waterTargetG)}</span>
+              {v.waterAddG !== null && v.waterAddG > 0 ? <span className="live-add">{t("add", { grams: grams(v.waterAddG) })}</span> : null}
+            </div>
           ) : null}
-          {targetTime ? (
-            <span>
-              {t("targetTime")} <strong>{targetTime}</strong>
-            </span>
-          ) : null}
-          {v.behindTarget ? <strong className="badge badge-warm">{t("behindTarget")}</strong> : null}
-          {v.status === "STEP_COMPLETE" ? <strong className="badge badge-accent">{t("stepComplete")}</strong> : null}
+          <div className="live-card" style={v.waterTargetG === null ? { gridColumn: "span 2" } : undefined}>
+            <ul className="live-facts">
+              <li>
+                <Icon name="bean" size={18} />
+                <span className="sr-only">{t("dose")}</span>
+                {brew.coffeeDoseG.toFixed(1).replace(".", sep)} g
+              </li>
+              <li>
+                <Icon name="drop" size={18} />
+                <span className="sr-only">{t("water")}</span>
+                {displayGrams(brew.waterTargetG)} g
+              </li>
+              {brew.waterTemperatureC !== null ? (
+                <li>
+                  <Icon name="thermometer" size={18} />
+                  <span className="sr-only">{t("temperature")}</span>
+                  {brew.waterTemperatureC} °C
+                </li>
+              ) : null}
+              {brew.grindSettingText ? (
+                <li>
+                  <Icon name="grind" size={18} />
+                  <span className="sr-only">{t("grind")}</span>
+                  {brew.grindSettingText}
+                </li>
+              ) : null}
+            </ul>
+          </div>
         </div>
 
-        {progress !== null && v.status !== "READY" ? (
-          <div className="live-progress" aria-hidden="true">
-            <span style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }} />
+        {targetTime || v.behindTarget || v.status === "STEP_COMPLETE" ? (
+          <div className="live-info">
+            {targetTime ? (
+              <span>
+                {t("targetTime")} <strong>{targetTime}</strong>
+              </span>
+            ) : null}
+            {v.behindTarget ? <strong className="badge badge-warm">{t("behindTarget")}</strong> : null}
+            {v.status === "STEP_COMPLETE" ? <strong className="badge badge-accent">{t("stepComplete")}</strong> : null}
           </div>
         ) : null}
 
@@ -344,45 +396,44 @@ export function LiveBrewScreen({ brew, cues }: { brew: LiveBrew; cues: { sound: 
             {v.nextStep.durationSeconds ? ` (${formatSeconds(v.nextStep.durationSeconds)})` : ""}
           </div>
         ) : null}
-
-        <div className="live-subtle small">
-          {[
-            `${brew.coffeeDoseG.toFixed(1).replace(".", sep)} g → ${displayGrams(brew.waterTargetG)} g`,
-            brew.waterTemperatureC !== null ? `${brew.waterTemperatureC} °C` : null,
-            brew.grindSettingText,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </div>
       </main>
 
       <div className="live-controls">
-        <button type="button" className="btn btn-primary primary" onClick={primary.onClick} autoFocus>
-          {primary.label}
-        </button>
-        <button type="button" className="btn" onClick={() => act("PREVIOUS")} disabled={!v.can.previous}>
-          ← {t("previous")}
+        <button type="button" className="live-control" onClick={() => act("PREVIOUS")} disabled={!v.can.previous}>
+          <span>
+            <Icon name="previous" size={20} />
+          </span>
+          <span>{t("previous")}</span>
         </button>
         {v.status === "READY" && v.can.next ? (
-          <button type="button" className="btn" onClick={() => act("START")}>
-            {t("startNow")}
+          <button type="button" className="live-control live-pause" onClick={() => act("START")}>
+            <span>
+              <Icon name="play" size={26} />
+            </span>
+            <span>{t("startNow")}</span>
           </button>
         ) : (
-          <button type="button" className="btn" onClick={() => act(v.status === "PAUSED" ? "RESUME" : "PAUSE")} disabled={!v.can.pause && !v.can.resume}>
-            {v.status === "PAUSED" ? `▶ ${t("resume")}` : `❚❚ ${t("pause")}`}
+          <button
+            type="button"
+            className="live-control live-pause"
+            onClick={() => act(v.status === "PAUSED" ? "RESUME" : "PAUSE")}
+            disabled={!v.can.pause && !v.can.resume}
+          >
+            <span>
+              <Icon name={v.status === "PAUSED" ? "play" : "pause"} size={26} strokeWidth={2.6} />
+            </span>
+            <span>{v.status === "PAUSED" ? t("resume") : t("pause")}</span>
           </button>
         )}
-        <button type="button" className="btn" onClick={() => act("SKIP")} disabled={!v.can.skip || isLast}>
-          {t("skip")} →
+        <button type="button" className="live-control" onClick={() => act("SKIP")} disabled={!v.can.skip || isLast}>
+          <span>
+            <Icon name="skip" size={20} />
+          </span>
+          <span>{t("skip")}</span>
         </button>
-      </div>
-
-      <div className="live-secondary">
-        <button type="button" className="btn btn-danger" onClick={() => abortDialog.current?.showModal()}>
-          {t("cancel")}
-        </button>
-        <button type="button" className="btn" onClick={openFinish} disabled={!v.can.finish}>
-          {t("finish")}
+        <button type="button" className="btn btn-primary primary" onClick={primary.onClick} autoFocus>
+          {primary.label}
+          <Icon name="arrow" size={20} />
         </button>
       </div>
 

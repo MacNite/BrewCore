@@ -4,6 +4,7 @@ import { requirePageUser } from "@/server/page-guard";
 import { PageHead } from "@/components/ui";
 import { LogoutButton } from "@/components/logout-button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { PaletteToggle } from "@/components/palette-toggle";
 import { PasswordForm, ProfileForm } from "./settings-forms";
 
 export async function generateMetadata() {
@@ -27,6 +28,11 @@ export default async function SettingsPage() {
           <section className="card" aria-labelledby="theme-heading">
             <h2 id="theme-heading">{t("theme")}</h2>
             <ThemeToggle />
+            <h3 id="palette-heading" style={{ marginTop: 16 }}>
+              {t("palette")}
+            </h3>
+            <p className="muted small">{t("paletteHint")}</p>
+            <PaletteToggle />
           </section>
           <section className="card" aria-labelledby="data-heading">
             <h2 id="data-heading">{t("data")}</h2>
