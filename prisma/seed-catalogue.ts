@@ -12,7 +12,8 @@ import { BUNDLED_RECIPES, BUNDLED_SOURCE_NAME } from "../src/lib/catalogue/recip
 
 export async function seedCatalogue(prisma: PrismaClient) {
   for (const grinder of BUNDLED_GRINDERS) {
-    const { slug, ...data } = grinder;
+    // Recommendations are catalogue data looked up by slug, not persisted.
+    const { slug, recommendations: _recommendations, recommendationSource: _source, ...data } = grinder;
     const existing = await prisma.grinderModel.findUnique({ where: { slug } });
     if (existing && existing.ownerId !== null) continue;
     await prisma.grinderModel.upsert({ where: { slug }, create: { slug, ownerId: null, ...data }, update: data });
