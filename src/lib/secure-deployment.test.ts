@@ -59,4 +59,18 @@ describe("security cookie options", () => {
     expect(securityCookieOptions(new Date(), "http://brewcore.local:3000").secure).toBe(false);
     expect(securityCookieOptions(new Date(), "https://brewcore.example.com").secure).toBe(true);
   });
+
+  it("follows the browser's own origin over APP_URL", () => {
+    // An https APP_URL opened directly on the LAN over plain HTTP: a Secure
+    // cookie would be dropped and the next request would have no session.
+    expect(securityCookieOptions(new Date(), "https://brewcore.example.com", "http://192.168.178.92:30035").secure).toBe(false);
+    expect(securityCookieOptions(new Date(), "http://brewcore.local:3000", "https://brewcore.example.com").secure).toBe(true);
+    expect(securityCookieOptions(new Date(), "https://brewcore.example.com", "https://brewcore.example.com").secure).toBe(true);
+  });
+
+  it("falls back to APP_URL without a usable Origin", () => {
+    expect(securityCookieOptions(new Date(), "https://brewcore.example.com", null).secure).toBe(true);
+    expect(securityCookieOptions(new Date(), "https://brewcore.example.com", "null").secure).toBe(true);
+    expect(securityCookieOptions(new Date(), "http://brewcore.local:3000", undefined).secure).toBe(false);
+  });
 });

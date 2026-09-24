@@ -71,9 +71,10 @@ export async function startSession(userId: string) {
   await prisma.session.create({ data: { userId, tokenHash, expiresAt } });
 
   const store = await cookies();
-  store.set(SESSION_COOKIE, token, securityCookieOptions(expiresAt));
+  const options = securityCookieOptions(expiresAt, process.env.APP_URL, (await headers()).get("origin"));
+  store.set(SESSION_COOKIE, token, options);
   const account = await prisma.user.findUnique({ where: { id: userId }, select: { mustChangePassword: true } });
-  if (account?.mustChangePassword) store.set(PASSWORD_CHANGE_COOKIE, "1", securityCookieOptions(expiresAt));
+  if (account?.mustChangePassword) store.set(PASSWORD_CHANGE_COOKIE, "1", options);
 
   // Opportunistic cleanup keeps the session table from growing unbounded.
   await prisma.session.deleteMany({ where: { userId, expiresAt: { lte: new Date() } } });
