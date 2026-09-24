@@ -1146,6 +1146,13 @@ Keep BrewCore self-hosting friendly. Modes: `bootstrap`, `invite`, `open`,
 The default is conservative (`bootstrap`: only the first user can register and
 becomes admin). A new private installation should be easy to bootstrap.
 
+**Decision (v0.1):** BrewCore keeps NutriCore's three modes — `bootstrap`,
+`open`, `disabled` — and accepts `invite` as an alias for `bootstrap`.
+`bootstrap` already becomes invitation-only once the first account exists, and
+a mode that closed registration before any administrator existed would lock the
+operator out. Administrators create single-use invitation links (hashed,
+expiring) and copy them by hand; there is no SMTP mailer in v0.1.
+
 ---
 
 ## 48. Internationalization
@@ -1472,6 +1479,13 @@ Coffee bags support an optional photo. Use NutriCore's image safety/size
 patterns where applicable. Store metadata responsibly. Do not require images.
 Future OCR must use a separate, explicit workflow.
 
+**Decision (v0.1):** the photo is part of v0.1. Like NutriCore's meal images it
+is stored in PostgreSQL (`Coffee.imageData`, `imageMime`, `imageUpdatedAt`
+instead of an `imagePath`), so backups include it and no upload volume is
+needed. The type is decided from the bytes (JPEG/PNG/WebP), the size limit is
+`IMAGE_UPLOAD_MAX_MB` (default 5), oversized photos are shrunk in the browser
+first, and the image is served only to its owner.
+
 ---
 
 ## 66. Coffee bag scanner (later)
@@ -1647,7 +1661,12 @@ REGISTRATION_MODE=bootstrap
 
 Only add `APP_SECRET` (or similar) if the ported NutriCore code actually uses
 one — sessions are opaque random tokens and do not need a signing secret by
-themselves. Do not copy NutriCore's nutrition/AI environment variables unless
+themselves.
+**Decision:** NutriCore only used `APP_SECRET` to encrypt its SMTP password.
+BrewCore has no SMTP, so there is no `APP_SECRET`. Additional variables that
+are used: `DEFAULT_LOCALE` (default `de`), `INVITATION_EXPIRY_HOURS`,
+`IMAGE_UPLOAD_MAX_MB`, `TRUSTED_PROXY_HOPS`, `ALLOW_INSECURE_APP_URL`,
+`LOG_LEVEL`, `APP_IMAGE`/`MIGRATE_IMAGE`. Do not copy NutriCore's nutrition/AI environment variables unless
 used.
 
 ---
@@ -2229,3 +2248,33 @@ Moved to [`CLAUDE.md`](../CLAUDE.md) → *Initial task*.
 ## 114. Priority order
 
 Moved to [`CLAUDE.md`](../CLAUDE.md) → *Priority order*.
+
+---
+
+## 115. Decision log
+
+Decisions taken while implementing v0.1 (Phases 0–6), with the section they
+refine. User decisions were asked for explicitly; the rest follow from the
+spec, NutriCore, or the priority order.
+
+| # | Decision | Refines |
+| - | -------- | ------- |
+| 1 | **User decision:** v0.1 (Phases 0–6) is delivered in one PR instead of one PR per phase. | CLAUDE.md workflow |
+| 2 | **User decision:** licensed under AGPL-3.0-only. | — |
+| 3 | **User decision:** registration keeps NutriCore's three modes; `invite` is an alias for `bootstrap`. | §47 |
+| 4 | **User decision:** invitations are copy-link only; no SMTP, no `APP_SECRET`. | §47, §78 |
+| 5 | **User decision:** the coffee bag photo is in v0.1, stored in PostgreSQL. | §7, §65 |
+| 6 | **User decision:** `DEFAULT_LOCALE` defaults to `de`, as in NutriCore. | §48 |
+| 7 | **User decision:** image publishing mirrors NutriCore: amd64 on `main`, amd64+arm64 on `v*.*.*` tags and on manual runs; semver/`main`/SHA/`latest` tags, SBOM, provenance. | §80 |
+| 8 | **User decision:** no marketing website. | — |
+| 9 | The `migrate` one-shot service also runs the bundled catalogue seed after `migrate deploy`, so a fresh `docker compose up` has grinders, brewers and recipes. The seed is idempotent and only touches `ownerId = null` rows. | §2, §82 |
+| 10 | Brew completion, abort and the post-brew tasting are JSON route handlers (`POST /api/brews/[id]/complete|abort|tasting`), not Server Actions: the offline outbox retries them after reconnecting, possibly after a redeploy, when an old Server Action id would no longer resolve. | §55, §57 |
+| 11 | Bundled recipes are stored in English; the reader's language is applied from the catalogue (`src/lib/catalogue/recipes.ts`) when they are displayed, snapshotted or copied. | §42, §48 |
+| 12 | Recipe grind guidance is the enum `GrindLevel` (EXTRA_FINE … COARSE). | §17 |
+| 13 | Live brew semantics: preparation steps (PREPARE / ADD_COFFEE / TARE without timing or water) can be confirmed before the timer starts; a step is due when its `durationSeconds` elapses or the brew clock reaches `targetElapsedSeconds`; a due `autoAdvance` step moves on at the exact due time even if the tick is late; the last step never auto-finishes; pressing Finish pauses the clock while optional actual weights are entered. | §14, §22 |
+| 14 | Only ABORTED brews can be deleted; completed brews are history. | §58 |
+| 15 | `Favorite` supports brews in the schema, but v0.1 only offers favorite coffees and recipes in the UI. | §64 |
+| 16 | Search is per list (coffees, roasters, recipes, brewers, grinder models) with PostgreSQL `ILIKE`; a global search screen is left for later. | §39 |
+| 17 | Deleting a user account deletes that user's data (including brews). Brews are never deleted because a coffee, recipe, grinder or brewer is deleted: those relations are `SetNull`. | §109 |
+| 18 | Offline: a hand-written service worker (no dependency) caches static chunks, icons, the home page and live brew pages; the live screen warms these caches itself because it is reached by client-side navigation. Cached pages are cleared on sign-out. | §24, §103 |
+

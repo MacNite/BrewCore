@@ -1,0 +1,74 @@
+name: brewcore
+
+services:
+  db:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-brewcore}
+      POSTGRES_USER: ${POSTGRES_USER:-brewcore}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Keeps the data directory usable across minor image upgrades.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ${POSTGRES_DATA_PATH:-./data/postgres}:/var/lib/postgresql/data
+      - ${BACKUP_PATH:-./backups}:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-brewcore} -d ${POSTGRES_DB:-brewcore}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    # Only reachable from the compose network, never published.
+    expose:
+      - "5432"
+
+  # Applies pending migrations and the bundled catalogue once, then exits. The
+  # app waits for it to complete successfully. The only image with the Prisma CLI.
+  migrate:
+    image: ${MIGRATE_IMAGE:-ghcr.io/macnite/brewcore-migrate:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrate
+    restart: "no"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-brewcore}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-brewcore}?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+  app:
+    # Published by .github/workflows/publish.yml. Pin a version tag in .env for
+    # a reproducible deployment.
+    image: ${APP_IMAGE:-ghcr.io/macnite/brewcore:latest}
+    # Kept so `docker compose up -d --build` builds locally from source.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Built from the compose credentials so the URL cannot drift from them.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-brewcore}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-brewcore}?schema=public
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    security_opt:
+      - no-new-privileges:true
+
+  # No worker in v0.1 (§2): BrewCore has no background jobs yet. When it gains
+  # one, it runs from the same image, like NutriCore's worker.
