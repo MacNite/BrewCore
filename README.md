@@ -64,7 +64,7 @@ ones:
 | Variable | Default | Meaning |
 | -------- | ------- | ------- |
 | `POSTGRES_PASSWORD` | — (required) | database password |
-| `APP_URL` | `http://localhost:3000` | public URL; `https://` marks cookies `Secure`. A production start refuses a public plain-HTTP URL unless `ALLOW_INSECURE_APP_URL=true` |
+| `APP_URL` | `http://localhost:3000` | public URL; `https://` marks cookies `Secure`, except for a sign-in from a browser that is itself on plain `http://` (e.g. the LAN address of an instance whose `APP_URL` is its HTTPS name), which would otherwise drop the cookie. A production start refuses a public plain-HTTP URL unless `ALLOW_INSECURE_APP_URL=true` |
 | `APP_PORT` | `3000` | published port |
 | `REGISTRATION_MODE` | `bootstrap` | `bootstrap` (= `invite`), `open`, `disabled` |
 | `DEFAULT_LOCALE` | `de` | language for new accounts and signed-out pages (`de`/`en`) |

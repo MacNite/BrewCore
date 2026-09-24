@@ -25,6 +25,31 @@ export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const secureCookies = (appUrl = process.env.APP_URL) => (appUrl ?? "").startsWith("https://");
 
 /**
+ * Whether a cookie set in answer to this request may carry `Secure`.
+ *
+ * The request's `Origin` is what the browser itself is on, so when there is one
+ * it decides: a browser on `http://` silently drops a `Secure` cookie. That is
+ * exactly what happens when an instance with an `https://` `APP_URL` (its public
+ * name behind a proxy) is also opened directly on its LAN address - sign-in
+ * appears to work, because the page after the redirect is rendered in the same
+ * response, and the very next request arrives without a session. On an HTTPS
+ * origin the cookie always gets `Secure`; only a browser that is already on
+ * plain HTTP, where `Secure` could not be honoured anyway, gets it without.
+ *
+ * Without an `Origin` (not sent by every client), `APP_URL` decides as before.
+ */
+export function secureCookiesFor(origin: string | null | undefined, appUrl = process.env.APP_URL) {
+  if (origin) {
+    try {
+      return new URL(origin).protocol === "https:";
+    } catch {
+      /* A malformed Origin says nothing; fall back to the configuration. */
+    }
+  }
+  return secureCookies(appUrl);
+}
+
+/**
  * One set of cookie options for every security-relevant cookie.
  *
  * The session cookie and the password-change gate used to be written with two
@@ -33,8 +58,8 @@ export const secureCookies = (appUrl = process.env.APP_URL) => (appUrl ?? "").st
  * thing still travelling in the clear. Anything that is part of the security
  * model gets these, and gets them from here.
  */
-export const securityCookieOptions = (expires: Date, appUrl = process.env.APP_URL) =>
-  ({ httpOnly: true, sameSite: "lax", secure: secureCookies(appUrl), path: "/", expires }) as const;
+export const securityCookieOptions = (expires: Date, appUrl = process.env.APP_URL, origin?: string | null) =>
+  ({ httpOnly: true, sameSite: "lax", secure: secureCookiesFor(origin, appUrl), path: "/", expires }) as const;
 
 export const hashPassword = (password: string) => argon2.hash(password, ARGON2_OPTIONS);
 
