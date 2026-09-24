@@ -20,7 +20,7 @@ export default async function GrinderDetailPage({ params }: { params: Promise<{ 
   const { grinder, recent, best, combinations } = await orNotFound(getUserGrinderDetail(user.id, id));
   const models = await grinderModelOptions(user.id);
   const model = grinder.grinderModel;
-  // Manufacturer starting points exist only for bundled models (§9).
+  // Published starting points exist only for bundled models (§9).
   const catalogue = model.ownerId === null ? bundledGrinder(model.slug) : null;
   const recommendations = catalogue ? grindRecommendations(catalogue.slug) : [];
   const range = num(model.minSetting) !== null && num(model.maxSetting) !== null ? `${num(model.minSetting)}–${num(model.maxSetting)} ${model.settingUnit ?? ""}` : null;
@@ -120,6 +120,7 @@ export default async function GrinderDetailPage({ params }: { params: Promise<{ 
                 <tr>
                   <th scope="col">{t("method")}</th>
                   <th scope="col">{t("setting")}</th>
+                  <th scope="col">{t("source")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -127,19 +128,16 @@ export default async function GrinderDetailPage({ params }: { params: Promise<{ 
                   <tr key={rec.method}>
                     <td>{methods(rec.method)}</td>
                     <td>{formatGrindRange(rec, model.settingUnit)}</td>
+                    <td>
+                      <a href={rec.source.url} target="_blank" rel="noopener noreferrer" title={rec.source.label}>
+                        {t(`sourceKinds.${rec.source.kind}`)}
+                      </a>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {catalogue.recommendationSource ? (
-            <p className="muted small">
-              {t("recommendedSource")}{" "}
-              <a href={catalogue.recommendationSource.url} target="_blank" rel="noopener noreferrer">
-                {catalogue.recommendationSource.label}
-              </a>
-            </p>
-          ) : null}
         </section>
       ) : null}
 

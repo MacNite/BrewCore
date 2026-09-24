@@ -89,8 +89,8 @@ export function BrewSetup({ data }: { data: BrewSetupData }) {
   const coffee = data.coffees.find((c) => c.id === coffeeId);
   const grinder = data.grinders.find((g) => g.id === grinderId);
   const brewer = data.brewers.find((b) => b.id === (brewerId || recipe?.brewerId));
-  // The manufacturer's starting range for this grinder and brew method (§9).
-  const manufacturerGrind = grinder ? recommendedGrind(grinder.catalogueSlug, recipe?.methodType) : null;
+  // The published starting range for this grinder and brew method (§9).
+  const publishedGrind = grinder ? recommendedGrind(grinder.catalogueSlug, recipe?.methodType) : null;
   const estimate = scaled ? estimateDurationSeconds(scaled.steps, recipe?.targetBrewTimeSeconds ?? null) : null;
 
   if (data.recipes.length === 0) return <p className="empty">{t("noRecipes")}</p>;
@@ -229,8 +229,8 @@ export function BrewSetup({ data }: { data: BrewSetupData }) {
                 <span className="hint" id="grind-hint">
                   {suggestedGrind
                     ? t("lastGrind", { setting: suggestedGrind.grindSettingText })
-                    : manufacturerGrind
-                      ? t("manufacturerGrind", { method: grindMethods(manufacturerGrind.method), range: formatGrindRange(manufacturerGrind, grinder?.settingUnit ?? null) })
+                    : publishedGrind
+                      ? t("recommendedGrind", { method: grindMethods(publishedGrind.method), range: formatGrindRange(publishedGrind, grinder?.settingUnit ?? null) })
                       : recipe.grindDescription
                         ? t("recipeGrind", { grind: grinds(recipe.grindDescription as "MEDIUM") })
                         : ""}

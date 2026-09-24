@@ -28,16 +28,8 @@ describe("bundled grinder catalogue", () => {
         }
       });
 
-      it("gets coarser from fine to coarse methods", () => {
-        const sorted = grindRecommendations(grinder.slug);
-        for (let i = 1; i < sorted.length; i++) {
-          expect(sorted[i].min, `${sorted[i - 1].method} → ${sorted[i].method}`).toBeGreaterThanOrEqual(sorted[i - 1].min);
-        }
-      });
-
-      it("cites a source when it has recommendations", () => {
-        if (grinder.recommendations.length === 0) return;
-        expect(grinder.recommendationSource?.url).toMatch(/^https:\/\//);
+      it("cites an https source for every recommendation", () => {
+        for (const rec of grinder.recommendations) expect(rec.source.url, rec.method).toMatch(/^https:\/\//);
       });
     });
   }

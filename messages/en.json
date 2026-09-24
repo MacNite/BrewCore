@@ -285,11 +285,15 @@
       "defaultForFilter": "Default grinder for filter",
       "defaultForEspresso": "Default grinder for espresso"
     },
-    "recommended": "Manufacturer starting points",
-    "recommendedHint": "Starting points from the manufacturer, in this grinder's own scale (clicks count from zero, with the burrs just touching). Every grinder differs a little — dial in from here and let your rated brews take over.",
-    "recommendedSource": "Source:",
+    "recommended": "Recommended starting points",
+    "recommendedHint": "Published grind settings for this model, in its own scale (clicks count from zero, with the burrs just touching). Every grinder differs a little — dial in from here and let your rated brews take over.",
     "method": "Method",
-    "setting": "Setting"
+    "setting": "Setting",
+    "source": "Source",
+    "sourceKinds": {
+      "MANUFACTURER": "Manufacturer",
+      "COMMUNITY": "Grind guide"
+    }
   },
   "brewers": {
     "title": "Brewers",
@@ -489,7 +493,7 @@
     "start": "Start brew",
     "starting": "Starting…",
     "startHint": "Starting needs a connection once. After that the brew works offline.",
-    "manufacturerGrind": "Manufacturer recommends for {method}: {range}"
+    "recommendedGrind": "Recommended start for {method}: {range}"
   },
   "live": {
     "title": "Live brew",
