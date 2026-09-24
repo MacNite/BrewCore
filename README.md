@@ -40,7 +40,10 @@ docker compose up -d
 Open <http://localhost:3000> and create the first account — it becomes the
 administrator. After that, sign-up closes (`REGISTRATION_MODE=bootstrap`) and
 new people join through invitation links created under **Settings →
-Administration**.
+Administration**. Each new link is also shown as a QR code (generated on the
+server, never by an external service) that the person can scan with their
+phone, or that you can save and send. Invitation links and QR codes are built
+from `APP_URL`, so set it to the address other people's devices can reach.
 
 The stack has three services:
 
