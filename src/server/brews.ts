@@ -406,6 +406,8 @@ export async function brewSetup(userId: string, locale: Locale, params: { coffee
       id: g.id,
       label: grinderLabel(g),
       settingUnit: g.grinderModel.settingUnit,
+      /** Catalogue key for manufacturer grind recommendations; null for custom models. */
+      catalogueSlug: g.grinderModel.ownerId === null ? g.grinderModel.slug : null,
       defaultForFilter: g.defaultForFilter,
       defaultForEspresso: g.defaultForEspresso,
     })),

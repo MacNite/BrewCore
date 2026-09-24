@@ -7,6 +7,7 @@ import { BrewRow, Empty, PageHead, Rating } from "@/components/ui";
 import { ConfirmSubmit } from "@/components/form-bits";
 import { dateInputValue, formatDate, type AppLocale } from "@/lib/format";
 import { num } from "@/lib/decimal";
+import { bundledGrinder, formatGrindRange, grindRecommendations } from "@/lib/catalogue/grinders";
 import { GrinderForm } from "../grinder-form";
 import { grinderModelOptions } from "../models";
 
@@ -14,10 +15,14 @@ export default async function GrinderDetailPage({ params }: { params: Promise<{ 
   const user = await requirePageUser();
   const { id } = await params;
   const t = await getTranslations("grinders");
+  const methods = await getTranslations("grindMethods");
   const locale = (await getLocale()) as AppLocale;
   const { grinder, recent, best, combinations } = await orNotFound(getUserGrinderDetail(user.id, id));
   const models = await grinderModelOptions(user.id);
   const model = grinder.grinderModel;
+  // Published starting points exist only for bundled models (§9).
+  const catalogue = model.ownerId === null ? bundledGrinder(model.slug) : null;
+  const recommendations = catalogue ? grindRecommendations(catalogue.slug) : [];
   const range = num(model.minSetting) !== null && num(model.maxSetting) !== null ? `${num(model.minSetting)}–${num(model.maxSetting)} ${model.settingUnit ?? ""}` : null;
 
   return (
@@ -104,6 +109,37 @@ export default async function GrinderDetailPage({ params }: { params: Promise<{ 
           ) : null}
         </section>
       </div>
+
+      {catalogue && recommendations.length > 0 ? (
+        <section className="section card" aria-labelledby="recommended-heading">
+          <h2 id="recommended-heading">{t("recommended")}</h2>
+          <p className="muted small">{t("recommendedHint")}</p>
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th scope="col">{t("method")}</th>
+                  <th scope="col">{t("setting")}</th>
+                  <th scope="col">{t("source")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recommendations.map((rec) => (
+                  <tr key={rec.method}>
+                    <td>{methods(rec.method)}</td>
+                    <td>{formatGrindRange(rec, model.settingUnit)}</td>
+                    <td>
+                      <a href={rec.source.url} target="_blank" rel="noopener noreferrer" title={rec.source.label}>
+                        {t(`sourceKinds.${rec.source.kind}`)}
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <section className="section" aria-labelledby="recent-heading">
         <h2 id="recent-heading">{t("recentSettings")}</h2>

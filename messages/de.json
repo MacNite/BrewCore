@@ -284,6 +284,15 @@
       "calibrationNotes": "Hinweise zur Kalibrierung",
       "defaultForFilter": "Standardmühle für Filter",
       "defaultForEspresso": "Standardmühle für Espresso"
+    },
+    "recommended": "Empfohlene Startwerte",
+    "recommendedHint": "Veröffentlichte Mahlgrade für dieses Modell in seiner eigenen Skala (Klicks ab Nullpunkt gezählt, wenn sich die Mahlscheiben gerade berühren). Jede Mühle ist etwas anders – stelle von hier aus ein und lass deine bewerteten Brühungen übernehmen.",
+    "method": "Zubereitung",
+    "setting": "Einstellung",
+    "source": "Quelle",
+    "sourceKinds": {
+      "MANUFACTURER": "Hersteller",
+      "COMMUNITY": "Mahlgrad-Guide"
     }
   },
   "brewers": {
@@ -328,6 +337,17 @@
     "MEDIUM": "Mittel",
     "MEDIUM_COARSE": "Mittelgrob",
     "COARSE": "Grob"
+  },
+  "grindMethods": {
+    "TURKISH": "Türkischer Mokka",
+    "ESPRESSO": "Espresso",
+    "MOKA": "Espressokocher",
+    "AEROPRESS": "AeroPress",
+    "POUR_OVER": "Handfilter / Pour-over",
+    "CHEMEX": "Chemex",
+    "DRIP": "Filtermaschine",
+    "FRENCH_PRESS": "French Press",
+    "COLD_BREW": "Cold Brew"
   },
   "stepTypes": {
     "PREPARE": "Vorbereiten",
@@ -472,7 +492,8 @@
     "targets": "Schrittziele",
     "start": "Brühen starten",
     "starting": "Wird gestartet …",
-    "startHint": "Zum Starten ist einmal eine Verbindung nötig. Danach funktioniert die Zubereitung offline."
+    "startHint": "Zum Starten ist einmal eine Verbindung nötig. Danach funktioniert die Zubereitung offline.",
+    "recommendedGrind": "Empfohlener Start für {method}: {range}"
   },
   "live": {
     "title": "Zubereitung",
