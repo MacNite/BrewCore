@@ -1,0 +1,528 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Accounts (ported from NutriCore, nutrition fields removed)
+// ---------------------------------------------------------------------------
+
+enum Locale {
+  de
+  en
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  username           String   @unique
+  passwordHash       String
+  role               UserRole @default(USER)
+  active             Boolean  @default(true)
+  mustChangePassword Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  profile         UserProfile?
+  sessions        Session[]
+  invitationsSent UserInvitation[] @relation("InvitationSender")
+
+  roasters      Roaster[]
+  coffees       Coffee[]
+  grinderModels GrinderModel[]
+  grinders      UserGrinder[]
+  brewers       Brewer[]
+  recipes       Recipe[]
+  brews         Brew[]
+  favorites     Favorite[]
+}
+
+model UserProfile {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  displayName  String
+  language     Locale    @default(de)
+  theme        String    @default("system")
+  /// Live Brew cues (§72). Each can be switched off; none is required.
+  cueSound     Boolean   @default(true)
+  cueVibration Boolean   @default(true)
+  onboardedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Single-use invitation links. Only the SHA-256 hash of the token is stored.
+model UserInvitation {
+  id          String    @id @default(cuid())
+  email       String
+  name        String?
+  role        UserRole  @default(USER)
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  invitedById String
+  createdAt   DateTime  @default(now())
+  invitedBy   User      @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([email, createdAt])
+  @@index([expiresAt])
+}
+
+model RateLimitBucket {
+  /// The limiter key, e.g. `login:203.0.113.7`. Account limits are keyed on a
+  /// hash so this table never holds an email address.
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+
+  @@index([resetAt])
+}
+
+// ---------------------------------------------------------------------------
+// Catalogues and equipment (§6–12)
+// ---------------------------------------------------------------------------
+
+enum RoastLevel {
+  LIGHT
+  MEDIUM_LIGHT
+  MEDIUM
+  MEDIUM_DARK
+  DARK
+  UNKNOWN
+}
+
+enum GrinderType {
+  HAND
+  ELECTRIC
+  BUILT_IN
+}
+
+enum GrinderAdjustmentType {
+  CLICK
+  NUMBER
+  STEPLESS
+  MICRON
+  CUSTOM
+}
+
+enum BrewMethodType {
+  POUR_OVER
+  IMMERSION
+  HYBRID
+  AEROPRESS
+  ESPRESSO
+  MOKA
+  FRENCH_PRESS
+  COLD_BREW
+  CUPPING
+  OTHER
+}
+
+/// Generic grind guidance on a recipe (§17). Exact settings live on the Brew.
+enum GrindLevel {
+  EXTRA_FINE
+  FINE
+  MEDIUM_FINE
+  MEDIUM
+  MEDIUM_COARSE
+  COARSE
+}
+
+/// `ownerId = null` is reserved for a later global catalogue; in v0.1 every
+/// roaster is user-created (§8).
+model Roaster {
+  id         String    @id @default(cuid())
+  ownerId    String?
+  name       String
+  country    String?
+  city       String?
+  website    String?
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
+
+  owner   User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  coffees Coffee[]
+
+  @@index([ownerId, name])
+}
+
+model Coffee {
+  id                  String  @id @default(cuid())
+  ownerId             String
+  name                String
+  roasterId           String?
+  /// The roaster's name as typed or selected, kept if the roaster is removed.
+  roasterNameSnapshot String?
+
+  country         String?
+  region          String?
+  farm            String?
+  producer        String?
+  varieties       String[]
+  /// Free text, with common values suggested in the UI (§7).
+  process         String?
+  processingNotes String?
+  altitudeMinMasl Int?
+  altitudeMaxMasl Int?
+
+  roastLevel   RoastLevel @default(UNKNOWN)
+  roastDate    DateTime?  @db.Date
+  purchaseDate DateTime?  @db.Date
+  openedDate   DateTime?  @db.Date
+
+  bagWeightG       Decimal? @db.Decimal(8, 2)
+  remainingWeightG Decimal? @db.Decimal(8, 2)
+
+  roasterTastingNotes String[]
+  userTags            String[]
+  description         String?
+  notes               String?
+
+  /// Optional bag photo (§65). Stored in PostgreSQL like NutriCore's meal
+  /// images so backups include it; the type is decided from the bytes.
+  imageData      Bytes?
+  imageMime      String?
+  imageUpdatedAt DateTime?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
+
+  owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  roaster   Roaster?   @relation(fields: [roasterId], references: [id], onDelete: SetNull)
+  brews     Brew[]
+  favorites Favorite[]
+
+  @@index([ownerId, archivedAt])
+  @@index([roasterId])
+}
+
+model GrinderModel {
+  id             String                @id @default(cuid())
+  /// null = bundled catalogue entry, set = custom model added by that user.
+  ownerId        String?
+  manufacturer   String
+  model          String
+  /// Stable key for bundled models; the seed upserts on it. Null for custom models.
+  slug           String?               @unique
+  type           GrinderType
+  burrType       String?
+  burrDiameterMm Int?
+  adjustmentType GrinderAdjustmentType
+  /// e.g. "clicks", "µm", "number".
+  settingUnit    String?
+  minSetting     Decimal?              @db.Decimal(8, 2)
+  maxSetting     Decimal?              @db.Decimal(8, 2)
+  notes          String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  archivedAt     DateTime?
+
+  owner    User?         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  grinders UserGrinder[]
+
+  @@index([ownerId])
+}
+
+model UserGrinder {
+  id                 String    @id @default(cuid())
+  ownerId            String
+  grinderModelId     String
+  nickname           String?
+  burrDescription    String?
+  burrInstallDate    DateTime? @db.Date
+  zeroPoint          String?
+  calibrationNotes   String?
+  defaultForFilter   Boolean   @default(false)
+  defaultForEspresso Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  archivedAt         DateTime?
+
+  owner        User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  grinderModel GrinderModel @relation(fields: [grinderModelId], references: [id], onDelete: Restrict)
+  brews        Brew[]
+
+  @@index([ownerId, archivedAt])
+}
+
+model Brewer {
+  id           String         @id @default(cuid())
+  /// null = bundled catalogue entry, set = custom brewer added by that user.
+  ownerId      String?
+  /// Stable key for bundled brewers; the seed upserts on it.
+  slug         String?        @unique
+  manufacturer String?
+  model        String
+  methodType   BrewMethodType
+  capacityMl   Int?
+  description  String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  archivedAt   DateTime?
+
+  owner   User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  recipes Recipe[]
+  brews   Brew[]
+
+  @@index([ownerId])
+}
+
+// ---------------------------------------------------------------------------
+// Recipes (§13–17, §42–43)
+// ---------------------------------------------------------------------------
+
+enum RecipeStepType {
+  PREPARE
+  TARE
+  ADD_COFFEE
+  BLOOM
+  POUR
+  WAIT
+  STIR
+  SWIRL
+  PRESS
+  BREAK_CRUST
+  DRAW_DOWN
+  STOP
+  SERVE
+  CUSTOM
+}
+
+model Recipe {
+  id                 String  @id @default(cuid())
+  /// null = bundled recipe (§42).
+  ownerId            String?
+  /// Stable slug for bundled recipes; null on user recipes and copies.
+  bundledKey         String? @unique
+  forkedFromRecipeId String?
+
+  name        String
+  description String?
+
+  brewerId   String?
+  methodType BrewMethodType
+
+  defaultCoffeeDoseG Decimal  @db.Decimal(8, 2)
+  defaultWaterG      Decimal  @db.Decimal(8, 2)
+  /// Espresso: target beverage weight (§88).
+  targetYieldG       Decimal? @db.Decimal(8, 2)
+
+  waterTemperatureC     Decimal?    @db.Decimal(5, 2)
+  grindDescription      GrindLevel?
+  targetBrewTimeSeconds Int?
+  servings              Int         @default(1)
+  tags                  String[]
+
+  sourceName String?
+  sourceUrl  String?
+  authorName String?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
+
+  owner      User?        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  brewer     Brewer?      @relation(fields: [brewerId], references: [id], onDelete: SetNull)
+  forkedFrom Recipe?      @relation("RecipeForks", fields: [forkedFromRecipeId], references: [id], onDelete: SetNull)
+  forks      Recipe[]     @relation("RecipeForks")
+  steps      RecipeStep[]
+  brews      Brew[]
+  favorites  Favorite[]
+
+  @@index([ownerId, archivedAt])
+}
+
+model RecipeStep {
+  id          String         @id @default(cuid())
+  recipeId    String
+  position    Int
+  type        RecipeStepType
+  title       String?
+  instruction String
+
+  /// How long this step lasts, e.g. a 45 s bloom.
+  durationSeconds         Int?
+  /// Brew-clock time at which the step should end, e.g. 1:15.
+  targetElapsedSeconds    Int?
+  /// Optional upper bound for a range, e.g. 2:45–3:15.
+  targetElapsedMaxSeconds Int?
+  /// Cumulative scale target after this step (canonical, §15).
+  waterTargetG            Decimal? @db.Decimal(8, 2)
+  temperatureC            Decimal? @db.Decimal(5, 2)
+
+  requiresConfirmation Boolean @default(false)
+  autoAdvance          Boolean @default(false)
+  metadata             Json?
+
+  recipe  Recipe           @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  results BrewStepResult[]
+
+  @@index([recipeId, position])
+}
+
+// ---------------------------------------------------------------------------
+// Brews (§18–19, §25, §30, §64)
+// ---------------------------------------------------------------------------
+
+enum BrewStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABORTED
+}
+
+/// One actual brewing event. Never overwritten when the coffee, grinder or
+/// recipe changes: the snapshot columns describe what was used at the time.
+model Brew {
+  id            String  @id @default(cuid())
+  ownerId       String
+  recipeId      String?
+  coffeeId      String?
+  userGrinderId String?
+  brewerId      String?
+  parentBrewId  String?
+
+  status      BrewStatus @default(IN_PROGRESS)
+  /// Client timestamps (§57), not the time the request reached the server.
+  startedAt   DateTime?
+  completedAt DateTime?
+  abortedAt   DateTime?
+
+  coffeeDoseG     Decimal  @db.Decimal(8, 2)
+  waterTargetG    Decimal  @db.Decimal(8, 2)
+  waterActualG    Decimal? @db.Decimal(8, 2)
+  beverageWeightG Decimal? @db.Decimal(8, 2)
+  /// Derived at creation: waterTargetG / coffeeDoseG.
+  ratio           Decimal  @db.Decimal(8, 4)
+
+  waterTemperatureC Decimal? @db.Decimal(5, 2)
+
+  grindSettingText    String?
+  grindSettingNumeric Decimal? @db.Decimal(8, 2)
+  grindSettingUnit    String?
+  grindSettingNote    String?
+
+  targetDurationSeconds Int?
+  actualDurationSeconds Int?
+
+  notes String?
+
+  recipeNameSnapshot String
+  coffeeNameSnapshot String?
+  roasterSnapshot    String?
+  roastDateSnapshot  DateTime? @db.Date
+  grinderSnapshot    String?
+  brewerSnapshot     String?
+  /// The scaled recipe including every step exactly as used.
+  recipeSnapshot     Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner       User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  recipe      Recipe?          @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  coffee      Coffee?          @relation(fields: [coffeeId], references: [id], onDelete: SetNull)
+  userGrinder UserGrinder?     @relation(fields: [userGrinderId], references: [id], onDelete: SetNull)
+  brewer      Brewer?          @relation(fields: [brewerId], references: [id], onDelete: SetNull)
+  parentBrew  Brew?            @relation("BrewAgain", fields: [parentBrewId], references: [id], onDelete: SetNull)
+  childBrews  Brew[]           @relation("BrewAgain")
+  stepResults BrewStepResult[]
+  tasting     Tasting?
+  favorites   Favorite[]
+
+  @@index([ownerId, createdAt])
+  @@index([ownerId, status])
+  @@index([ownerId, recipeId, userGrinderId])
+  @@index([coffeeId])
+}
+
+model BrewStepResult {
+  /// Client-generated UUID, so a re-sent completion is a no-op (§57).
+  id           String         @id
+  brewId       String
+  recipeStepId String?
+  position     Int
+  type         RecipeStepType
+
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  targetWeightG Decimal? @db.Decimal(8, 2)
+  actualWeightG Decimal? @db.Decimal(8, 2)
+
+  targetDurationSeconds Int?
+  actualDurationSeconds Int?
+
+  skipped Boolean @default(false)
+  notes   String?
+
+  brew       Brew        @relation(fields: [brewId], references: [id], onDelete: Cascade)
+  recipeStep RecipeStep? @relation(fields: [recipeStepId], references: [id], onDelete: SetNull)
+
+  @@index([brewId, position])
+}
+
+model Tasting {
+  id             String   @id @default(cuid())
+  brewId         String   @unique
+  rating         Int
+  wouldBrewAgain Boolean?
+  /// Stable keys such as SOUR (§31), translated in the UI.
+  tags           String[]
+  acidity        Int?
+  sweetness      Int?
+  bitterness     Int?
+  body           Int?
+  clarity        Int?
+  aftertaste     Int?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  brew Brew @relation(fields: [brewId], references: [id], onDelete: Cascade)
+}
+
+/// Exactly one target is set; the migration adds a CHECK constraint for it.
+model Favorite {
+  id        String   @id @default(cuid())
+  ownerId   String
+  coffeeId  String?
+  recipeId  String?
+  brewId    String?
+  createdAt DateTime @default(now())
+
+  owner  User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  coffee Coffee? @relation(fields: [coffeeId], references: [id], onDelete: Cascade)
+  recipe Recipe? @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  brew   Brew?   @relation(fields: [brewId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, coffeeId])
+  @@unique([ownerId, recipeId])
+  @@unique([ownerId, brewId])
+}
