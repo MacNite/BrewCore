@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+env:
+  DATABASE_URL: postgresql://brewcore:brewcore@127.0.0.1:5432/brewcore?schema=public
+  TEST_DATABASE_URL: postgresql://brewcore:brewcore@127.0.0.1:5432/brewcore?schema=public
+  # A second, empty database for the schema/migration drift check.
+  SHADOW_DATABASE_URL: postgresql://brewcore:brewcore@127.0.0.1:5432/brewcore_shadow?schema=public
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_DB: brewcore
+          POSTGRES_USER: brewcore
+          POSTGRES_PASSWORD: brewcore
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U brewcore"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - name: Validate the Prisma schema
+        run: npx prisma validate
+
+      - name: Create the shadow database for the drift check
+        run: PGPASSWORD=brewcore psql -h 127.0.0.1 -U brewcore -d brewcore -c "CREATE DATABASE brewcore_shadow"
+
+      - name: Schema/migration drift check
+        run: npm run db:drift
+
+      - name: Apply migrations to a fresh PostgreSQL
+        run: npx prisma migrate deploy
+
+      - name: Seed the bundled catalogue
+        run: npm run db:seed
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: npm run test:e2e
+        env:
+          APP_URL: http://127.0.0.1:3100
+          PORT: 3100
+          E2E_PORT: 3100
+          # The suite registers one account per test from a single address.
+          RATE_LIMIT_MULTIPLIER: "50"
+          # And needs open registration for that; the bootstrap policy itself
+          # is covered by src/server/registration.test.ts.
+          REGISTRATION_MODE: open
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  docker:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_DB: brewcore
+          POSTGRES_USER: brewcore
+          POSTGRES_PASSWORD: brewcore
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U brewcore"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the app image
+        run: docker build -t brewcore:ci .
+
+      - name: Build the migration image
+        run: docker build -t brewcore-migrate:ci --target migrate .
+
+      # The two images together, as compose runs them: migrate + seed against
+      # a fresh database, then the app answers its health check.
+      - name: Migrate and seed with the migration image
+        run: >-
+          docker run --rm --network host
+          -e DATABASE_URL=postgresql://brewcore:brewcore@127.0.0.1:5432/brewcore?schema=public
+          brewcore-migrate:ci
+
+      - name: The app image starts and is healthy
+        run: |
+          docker run -d --name brewcore --network host \
+            -e DATABASE_URL=postgresql://brewcore:brewcore@127.0.0.1:5432/brewcore?schema=public \
+            -e APP_URL=http://localhost:3000 brewcore:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/health; then exit 0; fi
+            sleep 2
+          done
+          docker logs brewcore
+          exit 1
+
+      - name: The runtime image must not carry the Prisma CLI
+        run: |
+          if docker run --rm --entrypoint sh brewcore:ci -c 'test -e ./node_modules/prisma/build/index.js'; then
+            echo "The Prisma CLI is present in the runtime image; it belongs only in the migrate image." >&2
+            exit 1
+          fi
+          echo "Runtime image carries no Prisma CLI, as intended."
+
+      - name: The runtime image runs as a non-root user
+        run: test "$(docker run --rm --entrypoint id brewcore:ci -u)" != "0"
