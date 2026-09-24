@@ -721,6 +721,17 @@ Wait 30 sec
 
 Controls: Pause, Previous, Next, Finish, Cancel.
 
+**Decision (layout, "vessel"):** the centrepiece is a circular cup that fills
+to the planned cumulative water (`vesselLevel` in `src/lib/brewing/vessel.ts`,
+pure): earlier pours plus the current one once its step is underway, with rim
+notches at the current pour target. A ring around it shows the share of the
+step's time used. The clock inside shows the step's remaining time when it has
+one, otherwise the brew time. The fill is the recipe's plan, not a measurement.
+Everything it shows is also on screen as text (§71), and the wave motion stops
+under `prefers-reduced-motion`. Cancel (✕) and Finish (✓) sit in the header;
+Previous, Pause/Resume and Skip are round buttons with text labels above the
+full-width primary action.
+
 - Avoid small controls; use large touch targets.
 - Prevent accidental navigation away.
 - Use the Wake Lock API while brewing if supported (§73).
@@ -1575,6 +1586,18 @@ Add BrewCore-specific icons. Do not reuse NutriCore branding assets.
 Support light, dark and system. Keep NutriCore's theme architecture but design
 BrewCore independently. Avoid turning everything brown just because it is
 coffee software. Prioritize contrast and usability.
+
+**Decision (palettes):** besides light/dark/system there is a second, independent
+choice of colour palette, set in Settings and stored per device
+(`localStorage["brewcore-palette"]`, applied as `data-palette` on `<html>`
+before first paint, like the theme):
+
+- `classic` (default): the cool neutral base with the teal accent.
+- `roast` (opt-in): espresso browns with a caramel accent, in a light and a dark
+  variant.
+
+The default stays non-brown as above; Roast exists because users asked for it.
+Both palettes meet the same contrast targets and share every other token.
 
 ---
 

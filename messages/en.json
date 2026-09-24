@@ -509,7 +509,12 @@
     },
     "restored": "Your brew was restored — timing continued in the background.",
     "brewTime": "Brew time",
-    "stepOf": "{number} / {count}",
+    "stepLabel": "Step {number} / {count}",
+    "total": "Total {time}",
+    "dose": "Coffee",
+    "water": "Water",
+    "temperature": "Temperature",
+    "grind": "Grind",
     "pourTo": "Pour to",
     "add": "Add {grams}",
     "remaining": "Remaining",
@@ -668,6 +673,12 @@
       "light": "Light",
       "dark": "Dark",
       "system": "System"
+    },
+    "palette": "Colours",
+    "paletteHint": "Applies to the whole app, in light and dark.",
+    "palettes": {
+      "classic": "Classic",
+      "roast": "Roast"
     },
     "data": "Your data",
     "exportHint": "Everything you have entered, as one JSON file.",
