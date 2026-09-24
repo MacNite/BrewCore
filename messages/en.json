@@ -284,6 +284,15 @@
       "calibrationNotes": "Calibration notes",
       "defaultForFilter": "Default grinder for filter",
       "defaultForEspresso": "Default grinder for espresso"
+    },
+    "recommended": "Recommended starting points",
+    "recommendedHint": "Published grind settings for this model, in its own scale (clicks count from zero, with the burrs just touching). Every grinder differs a little — dial in from here and let your rated brews take over.",
+    "method": "Method",
+    "setting": "Setting",
+    "source": "Source",
+    "sourceKinds": {
+      "MANUFACTURER": "Manufacturer",
+      "COMMUNITY": "Grind guide"
     }
   },
   "brewers": {
@@ -328,6 +337,17 @@
     "MEDIUM": "Medium",
     "MEDIUM_COARSE": "Medium-coarse",
     "COARSE": "Coarse"
+  },
+  "grindMethods": {
+    "TURKISH": "Turkish",
+    "ESPRESSO": "Espresso",
+    "MOKA": "Moka pot",
+    "AEROPRESS": "AeroPress",
+    "POUR_OVER": "Pour-over / filter",
+    "CHEMEX": "Chemex",
+    "DRIP": "Filter machine",
+    "FRENCH_PRESS": "French press",
+    "COLD_BREW": "Cold brew"
   },
   "stepTypes": {
     "PREPARE": "Prepare",
@@ -472,7 +492,8 @@
     "targets": "Step targets",
     "start": "Start brew",
     "starting": "Starting…",
-    "startHint": "Starting needs a connection once. After that the brew works offline."
+    "startHint": "Starting needs a connection once. After that the brew works offline.",
+    "recommendedGrind": "Recommended start for {method}: {range}"
   },
   "live": {
     "title": "Live brew",

@@ -341,6 +341,21 @@ Adjustment types: `CLICK`, `NUMBER`, `STEPLESS`, `MICRON`, `CUSTOM`.
 Users must be able to add a custom grinder model when theirs is not in the
 bundled catalogue.
 
+### Recommended grind settings
+
+Bundled models carry published starting points per brew method (Turkish,
+espresso, moka pot, AeroPress, pour-over, Chemex, filter machine, French press,
+cold brew), in the model's own `settingUnit`. Each value names its source and
+whether it is the manufacturer's (manual, official site) or a community grind
+guide, used only where the manufacturer publishes nothing. Methods without a
+source are left out rather than estimated.
+
+They live in the catalogue (`src/lib/catalogue/grinders.ts`), not in the
+database, and are looked up by slug. The grinder detail screen lists them; the
+brew setup screen shows the matching one as a hint when there is no previous
+setting for that recipe and grinder. They are guidance only and are never
+written into a Brew.
+
 ---
 
 ## 10. UserGrinder
@@ -2287,3 +2302,4 @@ spec, NutriCore, or the priority order.
 | 18 | Offline: a hand-written service worker (no dependency) caches static chunks, icons, the home page and live brew pages; the live screen warms these caches itself because it is reached by client-side navigation. Cached pages are cleared on sign-out. | §24, §103 |
 | 19 | **User decision:** invitations can be handed over as a QR code of the single-use invitation link, rendered on the server (`qrcode`); no QR code for the bare base URL. | §47 |
 
+| 19 | Bundled grinder models carry recommended grind settings per brew method as catalogue data looked up by slug (no schema change). Each value cites its source and marks it manufacturer or community guide; a recipe's brew method maps to a chart row (hybrid → pour-over; generic immersion, cupping and other → none). The last setting used with a recipe and grinder takes precedence over the recommendation in brew setup. | §9, §17 |
