@@ -3,8 +3,9 @@ import { FlatCompat } from "@eslint/eslintrc";
 const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
 
 const config = [
-  // Generated and build output must not be linted.
-  { ignores: [".next/**", "node_modules/**", "next-env.d.ts", "playwright-report/**", "test-results/**"] },
+  // Generated and build output must not be linted; site/ is the static
+  // GitHub Pages website (plain browser scripts, not part of the app).
+  { ignores: [".next/**", "node_modules/**", "next-env.d.ts", "playwright-report/**", "test-results/**", "site/**"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {
