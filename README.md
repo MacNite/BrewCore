@@ -27,6 +27,10 @@ result, and brew it again tomorrow with every parameter carried over.
 
 The product and architecture spec is [`docs/SPEC.md`](docs/SPEC.md).
 
+**Website and demo:** <https://macnite.github.io/BrewCore/> — a feature
+overview and an interactive [static demo](https://macnite.github.io/BrewCore/demo/)
+(sample data, runs entirely in the browser). See *Website* below.
+
 ## Running with Docker Compose
 
 Requirements: Docker with Compose v2.
@@ -165,3 +169,16 @@ A schema change needs a migration: `npm run db:migrate:dev -- --name <change>`.
 ## License
 
 [AGPL-3.0-only](LICENSE).
+
+## Website
+
+`site/` holds the project website and the static demo: plain HTML, CSS and
+JavaScript with no build step and no external requests, in English and German.
+`.github/workflows/pages.yml` publishes it to GitHub Pages on every push to
+`main` that touches `site/` (or manually via *Run workflow*). One-time setup:
+**Settings → Pages → Build and deployment → Source: GitHub Actions**.
+
+The demo mirrors the app's behaviour (bundled recipes, deterministic dose
+scaling, a timestamp-derived brew timer, tasting, history snapshots, Brew
+Again) but shares no code with it and keeps its sample data in the browser's
+`localStorage`. Preview locally with `python3 -m http.server -d site 8080`.
