@@ -134,22 +134,26 @@ explicitly in the PR instead of skipping it silently.
 
 ## Commands
 
-To be filled in during Phase 0 (then keep up to date):
+Local commands need `DATABASE_URL` (and `SHADOW_DATABASE_URL` for the drift
+check, `TEST_DATABASE_URL` for the DB integration tests) — see `README.md`.
 
 | Purpose          | Command |
 | ---------------- | ------- |
-| install          | _TBD_   |
-| dev server       | _TBD_   |
-| lint             | _TBD_   |
-| typecheck        | _TBD_   |
-| unit tests       | _TBD_   |
-| E2E tests        | _TBD_   |
-| build            | _TBD_   |
-| new migration    | _TBD_   |
-| drift check      | _TBD_   |
-| seed             | _TBD_   |
-| docker (app)     | _TBD_   |
-| docker (migrate) | _TBD_   |
+| install          | `npm ci` |
+| dev server       | `npm run dev` |
+| lint             | `npm run lint` |
+| typecheck        | `npm run typecheck` |
+| unit tests       | `npm test` (DB integration tests run when `TEST_DATABASE_URL` is set) |
+| E2E tests        | `npm run build && npm run test:e2e` |
+| build            | `npm run build` |
+| prisma validate  | `npx prisma validate` |
+| new migration    | `npm run db:migrate:dev -- --name <change>` |
+| apply migrations | `npm run db:migrate` |
+| drift check      | `npm run db:drift` |
+| seed             | `npm run db:seed` (bundled catalogue) · `SEED_PASSWORD=… npm run db:seed:demo` (dev only) |
+| docker (app)     | `docker build -t brewcore .` |
+| docker (migrate) | `docker build -t brewcore-migrate --target migrate .` |
+| icons            | `node scripts/generate-icons.mjs` (after changing `public/icon.svg`) |
 
 ## Coding rules
 
