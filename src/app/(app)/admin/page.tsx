@@ -6,6 +6,7 @@ import { registrationMode } from "@/lib/env";
 import { PageHead } from "@/components/ui";
 import { ConfirmSubmit } from "@/components/form-bits";
 import { formatDate, formatDateTime, type AppLocale } from "@/lib/format";
+import { qrCodePngDataUrl } from "@/lib/qr-code";
 
 export async function generateMetadata() {
   const t = await getTranslations("admin");
@@ -18,17 +19,28 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const locale = (await getLocale()) as AppLocale;
   const params = await searchParams;
   const { users, invitations } = await adminOverview();
+  const inviteLink = params.token ? invitationUrl(params.token) : null;
+  const inviteQr = inviteLink ? await qrCodePngDataUrl(inviteLink) : null;
 
   return (
     <>
       <PageHead title={t("title")} subtitle={t("registrationMode", { mode: registrationMode() })} />
 
-      {params.token ? (
+      {inviteLink && inviteQr ? (
         <div className="notice notice-success" role="status">
-          <div>
+          <div className="grow">
             <strong>{t("inviteCreated")}</strong>
             <p style={{ margin: "6px 0" }}>{t("inviteCopy")}</p>
-            <input readOnly value={invitationUrl(params.token)} aria-label={t("inviteLink")} />
+            <input readOnly value={inviteLink} aria-label={t("inviteLink")} />
+            <p style={{ margin: "12px 0 6px" }}>{t("inviteQrHint")}</p>
+            {/* A data URL, not next/image: the code is generated per request and must not be cached or proxied. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="invite-qr" src={inviteQr} alt={t("inviteQrAlt")} width={240} height={240} />
+            <div style={{ marginTop: 8 }}>
+              <a className="btn" href={inviteQr} download="brewcore-invitation.png">
+                {t("inviteQrDownload")}
+              </a>
+            </div>
           </div>
         </div>
       ) : null}

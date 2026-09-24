@@ -1200,3 +1200,13 @@ dialog.app-dialog::backdrop {
     --text-muted: #2f363c;
   }
 }
+
+/* Invitation QR code: always dark on white so phone cameras read it in either theme. */
+.invite-qr {
+  display: block;
+  width: 240px;
+  max-width: 100%;
+  height: auto;
+  background: #ffffff;
+  border-radius: var(--radius-sm);
+}

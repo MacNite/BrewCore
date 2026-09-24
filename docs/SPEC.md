@@ -1153,6 +1153,14 @@ a mode that closed registration before any administrator existed would lock the
 operator out. Administrators create single-use invitation links (hashed,
 expiring) and copy them by hand; there is no SMTP mailer in v0.1.
 
+**Decision:** each newly created invitation link is also shown once as a QR
+code (PNG, dark on white, downloadable) so it can be scanned from the admin's
+screen or sent as an image. The code encodes the same single-use link and is
+rendered on the server with the `qrcode` package; the link never goes to a
+third-party QR service. A QR code for the bare base URL is not offered: in
+`bootstrap` mode that URL leads to a closed sign-up page, and in `open` mode
+anyone can already register there.
+
 ---
 
 ## 48. Internationalization
@@ -2277,4 +2285,5 @@ spec, NutriCore, or the priority order.
 | 16 | Search is per list (coffees, roasters, recipes, brewers, grinder models) with PostgreSQL `ILIKE`; a global search screen is left for later. | §39 |
 | 17 | Deleting a user account deletes that user's data (including brews). Brews are never deleted because a coffee, recipe, grinder or brewer is deleted: those relations are `SetNull`. | §109 |
 | 18 | Offline: a hand-written service worker (no dependency) caches static chunks, icons, the home page and live brew pages; the live screen warms these caches itself because it is reached by client-side navigation. Cached pages are cleared on sign-out. | §24, §103 |
+| 19 | **User decision:** invitations can be handed over as a QR code of the single-use invitation link, rendered on the server (`qrcode`); no QR code for the bare base URL. | §47 |
 
