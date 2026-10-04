@@ -11,8 +11,13 @@ BrewCore helps you reliably reproduce good coffee: pick a coffee and a recipe,
 follow a guided, timed brew (it keeps working offline once started), rate the
 result, and brew it again tomorrow with every parameter carried over.
 
-- Coffees (with optional bag photo), roasters, personal grinders on top of a
-  bundled grinder catalogue, bundled and custom brewers
+- Coffees (with optional bag photo) and roasters shared across the instance:
+  what is on the bag is visible to everyone, your bag (roast date, weights,
+  notes) stays private; similar coffees are suggested while adding one, others
+  can fill in missing info for the creator to accept, and administrators merge
+  duplicates
+- Personal grinders on top of a bundled grinder catalogue, bundled and custom
+  brewers
 - Structured recipes with ordered, reorderable steps, cumulative water targets
   and deterministic scaling from the coffee or the water; a bundled recipe catalogue (V60, AeroPress,
   French Press, Chemex, Kalita Wave, Clever Dripper, Espresso, Moka Pot)

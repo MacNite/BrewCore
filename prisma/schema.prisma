@@ -36,14 +36,16 @@ model User {
   sessions        Session[]
   invitationsSent UserInvitation[] @relation("InvitationSender")
 
-  roasters      Roaster[]
-  coffees       Coffee[]
-  grinderModels GrinderModel[]
-  grinders      UserGrinder[]
-  brewers       Brewer[]
-  recipes       Recipe[]
-  brews         Brew[]
-  favorites     Favorite[]
+  roasters           Roaster[]           @relation("RoasterCreator")
+  sharedCoffees      SharedCoffee[]      @relation("SharedCoffeeCreator")
+  catalogSuggestions CatalogSuggestion[]
+  coffees            Coffee[]
+  grinderModels      GrinderModel[]
+  grinders           UserGrinder[]
+  brewers            Brewer[]
+  recipes            Recipe[]
+  brews              Brew[]
+  favorites          Favorite[]
 }
 
 model UserProfile {
@@ -152,29 +154,37 @@ enum GrindLevel {
   COARSE
 }
 
-/// `ownerId = null` is reserved for a later global catalogue; in v0.1 every
-/// roaster is user-created (§8).
+/// A roaster, shared by every member of the instance (§8). `createdById` is
+/// who added it: they and administrators edit it, everyone else may only fill
+/// gaps through a `CatalogSuggestion`. `SetNull`, never cascade: a roaster
+/// other members' coffees point at outlives the account that added it.
 model Roaster {
-  id         String    @id @default(cuid())
-  ownerId    String?
-  name       String
-  country    String?
-  city       String?
-  website    String?
-  notes      String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  archivedAt DateTime?
+  id          String    @id @default(cuid())
+  createdById String?
+  name        String
+  country     String?
+  city        String?
+  website     String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
 
-  owner   User?    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  coffees Coffee[]
+  createdBy   User?               @relation("RoasterCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  coffees     SharedCoffee[]
+  suggestions CatalogSuggestion[]
 
-  @@index([ownerId, name])
+  @@index([name])
+  @@index([createdById])
 }
 
-model Coffee {
+/// A coffee as the whole instance knows it (§7): what is printed on the bag.
+/// Visible to every member; `createdById` and administrators edit it,
+/// everyone else may only fill gaps through a `CatalogSuggestion`. Each
+/// member's own bag of it is a `Coffee`.
+model SharedCoffee {
   id                  String  @id @default(cuid())
-  ownerId             String
+  createdById         String?
   name                String
   roasterId           String?
   /// The roaster's name as typed or selected, kept if the roaster is removed.
@@ -191,18 +201,9 @@ model Coffee {
   altitudeMinMasl Int?
   altitudeMaxMasl Int?
 
-  roastLevel   RoastLevel @default(UNKNOWN)
-  roastDate    DateTime?  @db.Date
-  purchaseDate DateTime?  @db.Date
-  openedDate   DateTime?  @db.Date
-
-  bagWeightG       Decimal? @db.Decimal(8, 2)
-  remainingWeightG Decimal? @db.Decimal(8, 2)
-
+  roastLevel          RoastLevel @default(UNKNOWN)
   roasterTastingNotes String[]
-  userTags            String[]
   description         String?
-  notes               String?
 
   /// Optional bag photo (§65). Stored in PostgreSQL like NutriCore's meal
   /// images so backups include it; the type is decided from the bytes.
@@ -210,17 +211,91 @@ model Coffee {
   imageMime      String?
   imageUpdatedAt DateTime?
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdBy   User?               @relation("SharedCoffeeCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  roaster     Roaster?            @relation(fields: [roasterId], references: [id], onDelete: SetNull)
+  bags        Coffee[]
+  suggestions CatalogSuggestion[]
+
+  @@index([name])
+  @@index([roasterId])
+  @@index([createdById])
+}
+
+/// One member's bag of a `SharedCoffee` (§7): everything that is about this
+/// bag rather than the coffee - roast date, weights, own tags and notes - and
+/// private to its owner. Brews and favorites point here.
+model Coffee {
+  id             String @id @default(cuid())
+  ownerId        String
+  /// `Restrict`: a shared coffee goes away only through a merge, which moves
+  /// its bags to the entry that is kept first.
+  sharedCoffeeId String
+
+  roastDate    DateTime? @db.Date
+  purchaseDate DateTime? @db.Date
+  openedDate   DateTime? @db.Date
+
+  bagWeightG       Decimal? @db.Decimal(8, 2)
+  remainingWeightG Decimal? @db.Decimal(8, 2)
+
+  userTags String[]
+  notes    String?
+
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   archivedAt DateTime?
 
-  owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  roaster   Roaster?   @relation(fields: [roasterId], references: [id], onDelete: SetNull)
-  brews     Brew[]
-  favorites Favorite[]
+  owner        User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  sharedCoffee SharedCoffee @relation(fields: [sharedCoffeeId], references: [id], onDelete: Restrict)
+  brews        Brew[]
+  favorites    Favorite[]
 
   @@index([ownerId, archivedAt])
+  @@index([sharedCoffeeId])
+}
+
+/// Whether a suggestion has been looked at, and what was decided.
+enum SuggestionStatus {
+  OPEN
+  ACCEPTED
+  REJECTED
+}
+
+/// A member filling gaps in a shared coffee or roaster they did not create
+/// (§7, §8). Adapted from NutriCore's `FoodReport`: a person proposes, the
+/// creator or an administrator decides. Unlike a report it never overwrites -
+/// only fields that are still empty when it is accepted are written.
+///
+/// Exactly one of `sharedCoffeeId` and `roasterId` is set; the migration adds a
+/// CHECK constraint for it.
+model CatalogSuggestion {
+  id             String           @id @default(cuid())
+  authorId       String
+  sharedCoffeeId String?
+  roasterId      String?
+  /// Proposed values keyed by field name; only fields that were empty when filed.
+  values         Json
+  /// A proposed photo, for an entry that had none.
+  imageData      Bytes?
+  imageMime      String?
+  status         SuggestionStatus @default(OPEN)
+  /// Who decided. Deliberately not a foreign key, as in NutriCore's
+  /// `FoodReport.reviewedById`: the decision outlives the reviewer's account.
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime         @default(now())
+
+  author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  sharedCoffee SharedCoffee? @relation(fields: [sharedCoffeeId], references: [id], onDelete: Cascade)
+  roaster      Roaster?      @relation(fields: [roasterId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([sharedCoffeeId])
   @@index([roasterId])
+  @@index([authorId])
 }
 
 model GrinderModel {

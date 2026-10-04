@@ -69,7 +69,10 @@ export async function startBrew(userId: string, input: StartBrewInput, fallbackI
 
   return prisma.$transaction(async (tx) => {
     const coffee = input.coffeeId
-      ? await tx.coffee.findFirst({ where: { id: input.coffeeId, ...ownedBy(userId) }, select: { id: true, name: true, roasterNameSnapshot: true, roastDate: true } })
+      ? await tx.coffee.findFirst({
+          where: { id: input.coffeeId, ...ownedBy(userId) },
+          select: { id: true, roastDate: true, sharedCoffee: { select: { name: true, roasterNameSnapshot: true } } },
+        })
       : null;
     if (input.coffeeId && !coffee) throw new NotFoundError("coffee");
 
@@ -111,8 +114,8 @@ export async function startBrew(userId: string, input: StartBrewInput, fallbackI
         grindSettingNote: input.grindSettingNote,
         targetDurationSeconds: estimateDurationSeconds(snapshot.steps, recipe.targetBrewTimeSeconds),
         recipeNameSnapshot: recipe.name,
-        coffeeNameSnapshot: coffee?.name ?? null,
-        roasterSnapshot: coffee?.roasterNameSnapshot ?? null,
+        coffeeNameSnapshot: coffee?.sharedCoffee.name ?? null,
+        roasterSnapshot: coffee?.sharedCoffee.roasterNameSnapshot ?? null,
         roastDateSnapshot: coffee?.roastDate ?? null,
         grinderSnapshot: grinder ? grinderLabel(grinder) : null,
         brewerSnapshot: brewer ? brewerLabel(brewer) : null,
@@ -348,7 +351,7 @@ export async function brewSetup(userId: string, locale: Locale, params: { coffee
     prisma.coffee.findMany({
       where: { ...ownedBy(userId), ...notArchived },
       orderBy: { updatedAt: "desc" },
-      select: { id: true, name: true, roasterNameSnapshot: true, roastDate: true },
+      select: { id: true, roastDate: true, sharedCoffee: { select: { name: true, roasterNameSnapshot: true } } },
     }),
     prisma.recipe.findMany({
       where: { ...visibleTo(userId), ...notArchived },
@@ -400,7 +403,7 @@ export async function brewSetup(userId: string, locale: Locale, params: { coffee
       };
 
   return {
-    coffees: coffees.map((c) => ({ id: c.id, name: c.name, roaster: c.roasterNameSnapshot, roastDate: c.roastDate?.toISOString() ?? null })),
+    coffees: coffees.map((c) => ({ id: c.id, name: c.sharedCoffee.name, roaster: c.sharedCoffee.roasterNameSnapshot, roastDate: c.roastDate?.toISOString() ?? null })),
     recipes,
     grinders: grinders.map((g) => ({
       id: g.id,
@@ -441,7 +444,7 @@ export async function homeData(userId: string) {
       where: { ...ownedBy(userId), ...notArchived },
       orderBy: { updatedAt: "desc" },
       take: 4,
-      select: { id: true, name: true, roasterNameSnapshot: true, roastDate: true, remainingWeightG: true },
+      select: { id: true, roastDate: true, remainingWeightG: true, sharedCoffee: { select: { name: true, roasterNameSnapshot: true } } },
     }),
     prisma.favorite.findMany({
       where: { ownerId: userId, recipeId: { not: null }, recipe: { archivedAt: null } },

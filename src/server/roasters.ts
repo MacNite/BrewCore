@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { safeHttpUrl } from "@/lib/url";
-import { NotFoundError } from "./errors";
-import { contains, notArchived, ownedBy } from "./ownership";
+import { ForbiddenError, NotFoundError } from "./errors";
+import { canEditShared, contains, notArchived, type Actor } from "./ownership";
 
 const text = (max: number) =>
   z
@@ -12,7 +12,7 @@ const text = (max: number) =>
     .optional()
     .transform((value) => value || null);
 
-export const roasterInput = z.object({
+const roasterFields = {
   name: z.string().trim().min(1).max(120),
   country: text(80),
   city: text(80),
@@ -24,13 +24,17 @@ export const roasterInput = z.object({
     .transform((value) => (value ? safeHttpUrl(value) ?? "invalid" : null))
     .refine((value) => value !== "invalid", { message: "url" }),
   notes: text(4000),
-});
+};
+export const roasterInput = z.object(roasterFields);
+/** What a suggestion may propose for a roaster: everything but the name. */
+export const roasterSuggestionInput = roasterInput.omit({ name: true });
+export const SUGGESTIBLE_ROASTER_FIELDS = ["country", "city", "website", "notes"] as const;
 export type RoasterInput = z.infer<typeof roasterInput>;
 
-export async function listRoasters(userId: string, options: { q?: string; includeArchived?: boolean } = {}) {
+/** Every roaster on the instance; roasters are shared (§8). */
+export async function listRoasters(options: { q?: string; includeArchived?: boolean } = {}) {
   return prisma.roaster.findMany({
     where: {
-      ...ownedBy(userId),
       ...(options.includeArchived ? {} : notArchived),
       ...(options.q ? { OR: [{ name: contains(options.q) }, { country: contains(options.q) }, { city: contains(options.q) }] } : {}),
     },
@@ -39,29 +43,52 @@ export async function listRoasters(userId: string, options: { q?: string; includ
   });
 }
 
-export async function getRoaster(userId: string, id: string) {
-  const roaster = await prisma.roaster.findFirst({
-    where: { id, ...ownedBy(userId) },
+/** A roaster's page: the roaster, its shared coffees with the caller's bags, and who may edit it. */
+export async function getRoaster(actor: Actor, id: string) {
+  const roaster = await prisma.roaster.findUnique({
+    where: { id },
     include: {
-      coffees: { where: { ownerId: userId }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, roastDate: true, archivedAt: true } },
+      createdBy: { select: { username: true, profile: { select: { displayName: true } } } },
+      coffees: {
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, country: true, process: true, bags: { where: { ownerId: actor.id }, select: { id: true }, take: 1 } },
+      },
     },
   });
   if (!roaster) throw new NotFoundError("roaster");
-  return roaster;
+  const { createdBy, coffees, ...rest } = roaster;
+  return {
+    roaster: rest,
+    coffees: coffees.map(({ bags, ...coffee }) => ({ ...coffee, myBagId: bags[0]?.id ?? null })),
+    createdByName: createdBy ? (createdBy.profile?.displayName ?? createdBy.username) : null,
+    canEdit: canEditShared(actor, roaster),
+  };
 }
 
-export async function saveRoaster(userId: string, input: RoasterInput, id?: string) {
-  if (!id) return prisma.roaster.create({ data: { ...input, ownerId: userId } });
+/**
+ * Creates a roaster (anyone) or updates one (its creator or an administrator).
+ * A new roaster whose name already exists is that roaster, not a second one.
+ */
+export async function saveRoaster(actor: Actor, input: RoasterInput, id?: string) {
+  if (!id) {
+    const existing = await prisma.roaster.findFirst({ where: { name: { equals: input.name, mode: "insensitive" } }, orderBy: { createdAt: "asc" } });
+    if (existing) return existing;
+    return prisma.roaster.create({ data: { ...input, createdById: actor.id } });
+  }
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.roaster.updateMany({ where: { id, ...ownedBy(userId) }, data: input });
-    if (updated.count !== 1) throw new NotFoundError("roaster");
-    // Keep the name snapshot on this user's coffees in step with a rename.
-    await tx.coffee.updateMany({ where: { roasterId: id, ownerId: userId }, data: { roasterNameSnapshot: input.name } });
-    return tx.roaster.findUniqueOrThrow({ where: { id } });
+    const current = await tx.roaster.findUnique({ where: { id }, select: { createdById: true } });
+    if (!current) throw new NotFoundError("roaster");
+    if (!canEditShared(actor, current)) throw new ForbiddenError();
+    const roaster = await tx.roaster.update({ where: { id }, data: input });
+    // Keep the name snapshot on the shared coffees in step with a rename.
+    await tx.sharedCoffee.updateMany({ where: { roasterId: id }, data: { roasterNameSnapshot: input.name } });
+    return roaster;
   });
 }
 
-export async function setRoasterArchived(userId: string, id: string, archived: boolean) {
-  const updated = await prisma.roaster.updateMany({ where: { id, ...ownedBy(userId) }, data: { archivedAt: archived ? new Date() : null } });
-  if (updated.count !== 1) throw new NotFoundError("roaster");
+export async function setRoasterArchived(actor: Actor, id: string, archived: boolean) {
+  const current = await prisma.roaster.findUnique({ where: { id }, select: { createdById: true } });
+  if (!current) throw new NotFoundError("roaster");
+  if (!canEditShared(actor, current)) throw new ForbiddenError();
+  await prisma.roaster.update({ where: { id }, data: { archivedAt: archived ? new Date() : null } });
 }
