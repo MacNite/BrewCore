@@ -7,7 +7,7 @@ import { startBrewAction } from "@/server/brew-actions";
 import type { FormState } from "@/server/action-state";
 import type { BrewSetupData } from "@/server/brews";
 import { FieldError, FormError, SubmitButton, invalidProps } from "@/components/form-bits";
-import { scaleRecipe, displayGrams } from "@/lib/brewing/scaling";
+import { doseForWater, scaleRecipe, displayGrams } from "@/lib/brewing/scaling";
 import { formatRatio, ratioOf } from "@/lib/brewing/ratio";
 import { estimateDurationSeconds, type StepType } from "@/lib/brewing/recipe";
 import { formatSeconds } from "@/lib/brewing/timer";
@@ -20,6 +20,12 @@ const parse = (value: string) => {
   return Number.isFinite(n) && n > 0 ? n : null;
 };
 const show = (value: number | null) => (value === null ? "" : String(value));
+
+/**
+ * Which amount leads: the coffee (water follows the recipe ratio), the water
+ * (coffee follows the recipe ratio), or both typed freely (a custom ratio).
+ */
+type ScaleMode = "dose" | "water" | "custom";
 
 export function BrewSetup({ data }: { data: BrewSetupData }) {
   const t = useTranslations("setup");
@@ -39,8 +45,8 @@ export function BrewSetup({ data }: { data: BrewSetupData }) {
 
   const [dose, setDose] = useState(show(prefill.coffeeDoseG ?? recipe?.defaultCoffeeDoseG ?? null));
   const [water, setWater] = useState(show(prefill.waterTargetG ?? recipe?.defaultWaterG ?? null));
-  // Brew Again keeps the previous water exactly; a fresh setup follows the ratio.
-  const [waterOverride, setWaterOverride] = useState(prefill.parentBrewId !== null && prefill.waterTargetG !== null);
+  // Brew Again keeps the previous amounts exactly; a fresh setup follows the ratio.
+  const [mode, setMode] = useState<ScaleMode>(prefill.parentBrewId !== null && prefill.waterTargetG !== null ? "custom" : "dose");
   const [temperature, setTemperature] = useState(show(prefill.waterTemperatureC ?? recipe?.waterTemperatureC ?? null));
   const [grindText, setGrindText] = useState(prefill.grindSettingText ?? "");
   const [grindNumeric, setGrindNumeric] = useState(show(prefill.grindSettingNumeric));
@@ -57,7 +63,7 @@ export function BrewSetup({ data }: { data: BrewSetupData }) {
     if (!recipe) return;
     setDose(show(recipe.defaultCoffeeDoseG));
     setWater(show(recipe.defaultWaterG));
-    setWaterOverride(false);
+    setMode("dose");
     setTemperature(show(recipe.waterTemperatureC));
     setBrewerId("");
   }, [recipeId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -71,19 +77,30 @@ export function BrewSetup({ data }: { data: BrewSetupData }) {
     setGrindUnit(suggestedGrind?.grindSettingUnit ?? data.grinders.find((g) => g.id === grinderId)?.settingUnit ?? "");
   }, [recipeId, grinderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const doseValue = parse(dose);
+  const typedWater = parse(water);
+  // In water-led mode the dose is derived from the wanted water (§16).
+  const doseValue = useMemo(() => {
+    if (mode !== "water") return parse(dose);
+    if (!recipe || typedWater === null) return null;
+    try {
+      return doseForWater(recipe, typedWater);
+    } catch {
+      return null;
+    }
+  }, [mode, dose, recipe, typedWater]);
   const scaled = useMemo(() => {
     if (!recipe || doseValue === null) return null;
     try {
       return scaleRecipe(
         { defaultCoffeeDoseG: recipe.defaultCoffeeDoseG, defaultWaterG: recipe.defaultWaterG, targetYieldG: recipe.targetYieldG, steps: recipe.steps },
-        { doseG: doseValue, waterOverrideG: waterOverride ? parse(water) : null },
+        { doseG: doseValue, waterOverrideG: mode === "dose" ? null : typedWater },
       );
     } catch {
       return null;
     }
-  }, [recipe, doseValue, water, waterOverride]);
-  const waterValue = waterOverride ? parse(water) : (scaled?.waterG ?? null);
+  }, [recipe, doseValue, typedWater, mode]);
+  const waterValue = mode === "dose" ? (scaled?.waterG ?? null) : typedWater;
+  const recipeRatio = recipe ? formatRatio(ratioOf(recipe.defaultWaterG, recipe.defaultCoffeeDoseG), sep) : "";
   const espresso = recipe?.methodType === "ESPRESSO";
 
   const coffee = data.coffees.find((c) => c.id === coffeeId);
@@ -178,30 +195,39 @@ export function BrewSetup({ data }: { data: BrewSetupData }) {
             <div className="row">
               <div className="field">
                 <label htmlFor="coffeeDoseG">{t("dose")}</label>
-                <input id="coffeeDoseG" name="coffeeDoseG" inputMode="decimal" value={dose} onChange={(e) => setDose(e.target.value)} required {...invalidProps(state, "coffeeDoseG")} />
+                <input
+                  id="coffeeDoseG"
+                  name="coffeeDoseG"
+                  inputMode="decimal"
+                  value={mode === "water" ? show(doseValue) : dose}
+                  onChange={(e) => {
+                    if (mode !== "custom") setMode("dose");
+                    setDose(e.target.value);
+                  }}
+                  required
+                  aria-describedby="dose-hint"
+                  {...invalidProps(state, "coffeeDoseG")}
+                />
+                <span className="hint" id="dose-hint">
+                  {mode === "water" ? t("doseFromWater", { ratio: recipeRatio }) : ""}
+                </span>
                 <FieldError state={state} name="coffeeDoseG" />
               </div>
               <div className="field">
-                <label htmlFor="water">{espresso ? t("water") : t("water")}</label>
+                <label htmlFor="water">{t("water")}</label>
                 <input
                   id="water"
                   inputMode="decimal"
-                  value={waterOverride ? water : show(scaled?.waterG ?? null)}
+                  value={mode === "dose" ? show(scaled?.waterG ?? null) : water}
                   onChange={(e) => {
-                    setWaterOverride(true);
+                    if (mode !== "custom") setMode("water");
                     setWater(e.target.value);
                   }}
                   aria-describedby="water-hint"
                   {...invalidProps(state, "waterTargetG")}
                 />
                 <span className="hint" id="water-hint">
-                  {waterOverride ? (
-                    <button type="button" className="btn btn-quiet" style={{ minHeight: 32, padding: "2px 8px" }} onClick={() => setWaterOverride(false)}>
-                      {t("followRatio")}
-                    </button>
-                  ) : (
-                    t("scaledFromRecipe")
-                  )}
+                  {mode === "dose" ? t("waterFromDose", { ratio: recipeRatio }) : mode === "water" ? t("waterLeads") : t("customRatio")}
                 </span>
                 <FieldError state={state} name="waterTargetG" />
               </div>
@@ -211,6 +237,24 @@ export function BrewSetup({ data }: { data: BrewSetupData }) {
                 <FieldError state={state} name="waterTemperatureC" />
               </div>
             </div>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={mode !== "custom"}
+                onChange={(e) => {
+                  if (!e.target.checked) {
+                    // Freeze the current amounts; from now on each is typed freely.
+                    setDose(show(doseValue));
+                    setWater(show(waterValue));
+                    setMode("custom");
+                  } else {
+                    setDose(show(doseValue));
+                    setMode("dose");
+                  }
+                }}
+              />
+              {t("keepRatio", { ratio: recipeRatio })}
+            </label>
             <div className="row">
               <div className="field">
                 <label htmlFor="grindSettingText">{t("grindSetting")}</label>

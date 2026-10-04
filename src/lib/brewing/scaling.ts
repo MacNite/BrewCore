@@ -6,6 +6,9 @@
  *    a gram, so float noise can never leak into a stored value.
  *  - Water is scaled with the dose so the ratio is preserved, unless the user
  *    overrides the total water explicitly.
+ *  - Scaling can also start from the water: `doseForWater` derives the dose at
+ *    the recipe ratio, and the brew then uses that water as an override so the
+ *    typed amount is kept exactly.
  *  - Step water targets scale by the same factor as the total water.
  *  - A step whose target was the recipe's total water ends at the scaled total
  *    *exactly* — no rounding drift across steps.
@@ -84,6 +87,20 @@ export function scaleRecipe<S extends ScalableStep>(recipe: ScalableRecipe<S>, o
     factor,
     steps,
   };
+}
+
+/**
+ * The dose that brews `waterG` at the recipe's ratio, to 0.1 g ("I want 500 g
+ * of coffee — how much do I grind?"). Pass the result as `doseG` and `waterG`
+ * as `waterOverrideG` to `scaleRecipe` so the water stays exactly as typed.
+ */
+export function doseForWater(recipe: Pick<ScalableRecipe, "defaultCoffeeDoseG" | "defaultWaterG">, waterG: number): number {
+  const baseDose = toTenths(recipe.defaultCoffeeDoseG);
+  const baseWater = toTenths(recipe.defaultWaterG);
+  const water = toTenths(waterG);
+  if (baseDose <= 0 || baseWater <= 0) throw new RangeError("A recipe needs a positive dose and water");
+  if (water <= 0) throw new RangeError("The water must be positive");
+  return fromTenths(Math.max(1, Math.round((baseDose * water) / baseWater)));
 }
 
 /**

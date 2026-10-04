@@ -554,6 +554,14 @@ Step targets scale by the same factor (here ×1.25):
 | 180 g    | 225 g  |
 | 320 g    | 400 g  |
 
+Scaling also works from the water: the user types the wanted water (e.g.
+500 g for a bigger pot) and BrewCore calculates the coffee at the recipe ratio
+(`doseForWater`, 0.1 g). The typed water is then kept exactly and the step
+targets scale to it. Brew setup offers three modes: coffee leads (default),
+water leads (typing in the water field), and a custom ratio (unticking "Keep
+the recipe ratio"), where both are set independently. Brew Again starts in the
+custom mode so the previous amounts are kept exactly.
+
 - Scaling rules must be deterministic and covered by unit tests (§76).
 - Do not mutate the original recipe when starting a scaled brew; scaled values
   live on the Brew and its snapshot.
@@ -2326,3 +2334,4 @@ spec, NutriCore, or the priority order.
 | 19 | **User decision:** invitations can be handed over as a QR code of the single-use invitation link, rendered on the server (`qrcode`); no QR code for the bare base URL. | §47 |
 
 | 19 | Bundled grinder models carry recommended grind settings per brew method as catalogue data looked up by slug (no schema change). Each value cites its source and marks it manufacturer or community guide; a recipe's brew method maps to a chart row (hybrid → pour-over; generic immersion, cupping and other → none). The last setting used with a recipe and grinder takes precedence over the recommendation in brew setup. | §9, §17 |
+| 20 | Brew setup scales from either side: typing the water derives the coffee at the recipe ratio and keeps the typed water exactly; a "Keep the recipe ratio" checkbox switches to a custom ratio where coffee and water are independent. Brew Again starts with the custom ratio. | §16 |

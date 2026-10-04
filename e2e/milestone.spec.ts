@@ -88,3 +88,30 @@ test("a timed step advances by itself, derived from the clock", async ({ page })
   await page.clock.fastForward("00:50");
   await expect(page.locator(".live-instruction", { hasText: "Pour to 200 g" })).toBeVisible();
 });
+
+test("the setup scales from the water as well as from the coffee", async ({ page }) => {
+  await registerAndOnboard(page);
+  await page.goto("/brew/new");
+  await selectByText(page, "Recipe", "Basic V60");
+  const dose = page.getByLabel("Coffee (g)");
+  const water = page.getByLabel("Water (g)");
+  const review = page.getByRole("region", { name: "Review" });
+
+  // Water leads: 500 g at the recipe's 15:250 needs 30 g coffee.
+  await water.fill("500");
+  await expect(dose).toHaveValue("30");
+  await expect(review.getByText("1:16.7")).toBeVisible();
+
+  // Coffee leads again: 32 g needs 533.3 g water.
+  await dose.fill("32");
+  await expect(water).toHaveValue("533.3");
+
+  // A custom ratio decouples the two.
+  await page.getByLabel(/Keep the recipe ratio/).uncheck();
+  await water.fill("500");
+  await expect(dose).toHaveValue("32");
+  await expect(review.getByText("1:15.6")).toBeVisible();
+
+  await page.getByRole("button", { name: "Start brew" }).click();
+  await page.waitForURL(/\/brew\/live\//);
+});

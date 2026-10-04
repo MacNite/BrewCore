@@ -14,7 +14,7 @@ result, and brew it again tomorrow with every parameter carried over.
 - Coffees (with optional bag photo), roasters, personal grinders on top of a
   bundled grinder catalogue, bundled and custom brewers
 - Structured recipes with ordered, reorderable steps, cumulative water targets
-  and deterministic dose scaling; a bundled recipe catalogue (V60, AeroPress,
+  and deterministic scaling from the coffee or the water; a bundled recipe catalogue (V60, AeroPress,
   French Press, Chemex, Kalita Wave, Clever Dripper, Espresso, Moka Pot)
 - Guided Live Brew: large timer, current instruction and target, next-step
   preview, pause/resume, manual or automatic step changes, sound/vibration

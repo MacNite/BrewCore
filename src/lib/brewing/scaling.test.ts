@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayGrams, roundToTenth, scaleRecipe, stepAdditions } from "./scaling";
+import { displayGrams, doseForWater, roundToTenth, scaleRecipe, stepAdditions } from "./scaling";
 import { formatRatio, persistedRatio, ratioOf, waterForRatio } from "./ratio";
 
 const recipe = {
@@ -49,6 +49,22 @@ describe("recipe scaling (§76)", () => {
     const scaled = scaleRecipe(recipe, { doseG: 20, waterOverrideG: 300 });
     expect(scaled.waterG).toBe(300);
     expect(scaled.steps.map((s) => s.waterTargetG)).toEqual([null, 56.3, 168.8, 300, null]);
+  });
+
+  it("derives the dose from a wanted water amount at the recipe ratio", () => {
+    expect(doseForWater(recipe, 400)).toBe(25);
+    expect(doseForWater(recipe, 500)).toBe(31.3);
+    expect(doseForWater({ defaultCoffeeDoseG: 15, defaultWaterG: 250 }, 500)).toBe(30);
+    expect(() => doseForWater(recipe, 0)).toThrow();
+    expect(() => doseForWater({ ...recipe, defaultWaterG: 0 }, 300)).toThrow();
+  });
+
+  it("keeps the typed water exactly when scaling from the water side", () => {
+    const dose = doseForWater(recipe, 500);
+    const scaled = scaleRecipe(recipe, { doseG: dose, waterOverrideG: 500 });
+    expect(scaled.waterG).toBe(500);
+    expect(scaled.steps.at(-2)!.waterTargetG).toBe(500);
+    expect(ratioOf(scaled.waterG, scaled.coffeeDoseG)).toBeCloseTo(16, 1);
   });
 
   it("never lets a step exceed the total or go backwards", () => {
