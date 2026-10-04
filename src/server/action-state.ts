@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { ConflictError, NotFoundError } from "./errors";
+import { ConflictError, ForbiddenError, NotFoundError } from "./errors";
 import type { FormState } from "./profile-actions";
 
 export type { FormState };
@@ -21,6 +21,7 @@ export function validationState(error: z.ZodError): FormState {
 export function errorState(error: unknown): FormState {
   if (error instanceof NotFoundError) return { error: "notFound" };
   if (error instanceof ConflictError) return { error: error.reason };
+  if (error instanceof ForbiddenError) return { error: "forbidden" };
   throw error;
 }
 

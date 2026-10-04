@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireAdminPage } from "@/server/page-guard";
 import { adminOverview, invitationUrl } from "@/server/admin";
@@ -24,7 +25,20 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <PageHead title={t("title")} subtitle={t("registrationMode", { mode: registrationMode() })} />
+      <PageHead
+        title={t("title")}
+        subtitle={t("registrationMode", { mode: registrationMode() })}
+        actions={
+          <>
+            <Link className="btn" href="/admin/duplicates">
+              {t("duplicates.link")}
+            </Link>
+            <Link className="btn" href="/coffees/suggestions">
+              {t("suggestionsLink")}
+            </Link>
+          </>
+        }
+      />
 
       {inviteLink && inviteQr ? (
         <div className="notice notice-success" role="status">

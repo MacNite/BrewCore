@@ -12,10 +12,10 @@ export async function generateMetadata() {
 }
 
 export default async function RoastersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const user = await requirePageUser();
+  await requirePageUser();
   const t = await getTranslations("roasters");
   const q = cleanQuery((await searchParams).q);
-  const roasters = await listRoasters(user.id, { q, includeArchived: true });
+  const roasters = await listRoasters({ q, includeArchived: true });
 
   return (
     <>

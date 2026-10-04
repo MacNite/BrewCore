@@ -1,10 +1,14 @@
 /**
  * Ownership rules in one place (§45).
  *
- * Catalogue-type rows (`GrinderModel`, `Brewer`, `Recipe`, `Roaster`) are
- * visible when they are bundled (`ownerId = null`) or the caller's own, and
- * writable only when they are the caller's own. Personal rows (`Coffee`,
+ * Catalogue-type rows (`GrinderModel`, `Brewer`, `Recipe`) are visible when
+ * they are bundled (`ownerId = null`) or the caller's own, and writable only
+ * when they are the caller's own. Personal rows (`Coffee` - a member's bag -,
  * `UserGrinder`, `Brew`, `Favorite`) are only ever the caller's own.
+ *
+ * Shared rows (`SharedCoffee`, `Roaster`) are visible to every signed-in
+ * member and writable by whoever created them and by administrators
+ * (`canEditShared`); everyone else fills gaps through a suggestion.
  *
  * Every server read, update and delete goes through one of these `where`
  * fragments, so a forged id from another account simply is not found.
@@ -23,3 +27,12 @@ export const notArchived = { archivedAt: null } as const;
 export const contains = (q: string) => ({ contains: q, mode: "insensitive" as const });
 
 export const cleanQuery = (value: unknown) => (typeof value === "string" ? value.trim().slice(0, 100) : "");
+
+/** Who is acting, for the rules that depend on the role as well as the id. */
+export interface Actor {
+  id: string;
+  role: "USER" | "ADMIN";
+}
+
+/** Whether the actor may edit a shared coffee or roaster directly. */
+export const canEditShared = (actor: Actor, row: { createdById: string | null }) => actor.role === "ADMIN" || (row.createdById !== null && row.createdById === actor.id);

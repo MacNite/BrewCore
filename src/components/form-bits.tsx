@@ -8,7 +8,7 @@ import type { FormState } from "@/server/action-state";
 export function FormError({ state }: { state: FormState }) {
   const t = useTranslations("errors");
   if (!state.error) return null;
-  const known = ["validation", "notFound", "aborted", "completed", "notCompleted", "bundledReadOnly", "tooShort", "tooCommon", "wrongPassword"] as const;
+  const known = ["validation", "notFound", "aborted", "completed", "notCompleted", "bundledReadOnly", "tooShort", "tooCommon", "wrongPassword", "forbidden", "duplicateSuggestion", "emptySuggestion", "notSuggestable", "altitudeRange"] as const;
   const key = (known as readonly string[]).includes(state.error) ? (state.error as (typeof known)[number]) : "generic";
   return (
     <div className="notice notice-error" role="alert">

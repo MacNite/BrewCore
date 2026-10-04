@@ -16,6 +16,7 @@ import { cookies } from "next/headers";
 import { requireAdmin, requireUser, startSession } from "./session";
 import { durableRateLimitOrFallback } from "./durable-rate-limit";
 import { issueInvitation, redeemableInvitation } from "./admin";
+import { mergeRoasters, mergeSharedCoffees } from "./catalogue-merge";
 
 export async function inviteUserAction(formData: FormData) {
   const admin = await requireAdmin();
@@ -151,4 +152,18 @@ export async function changeRequiredPasswordAction(formData: FormData) {
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password), mustChangePassword: false } });
   (await cookies()).delete(PASSWORD_CHANGE_COOKIE);
   redirect(user.onboarded ? "/" : "/onboarding");
+}
+
+const mergeTarget = z.object({ kind: z.enum(["coffee", "roaster"]), keepId: z.string().min(1).max(40), dropId: z.string().min(1).max(40) });
+
+/** Folds one duplicate shared coffee or roaster into another (§7, §8). */
+export async function mergeDuplicateAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const { kind, keepId, dropId } = mergeTarget.parse(Object.fromEntries(formData));
+  if (kind === "coffee") await mergeSharedCoffees(admin, keepId, dropId);
+  else await mergeRoasters(admin, keepId, dropId);
+  logger.info("Catalogue entries merged", { kind, keepId, dropId, by: admin.id });
+  revalidatePath("/admin/duplicates");
+  revalidatePath("/coffees", "layout");
+  revalidatePath("/roasters", "layout");
 }

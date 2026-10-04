@@ -2,10 +2,12 @@ import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requirePageUser } from "@/server/page-guard";
 import { listCoffees } from "@/server/coffees";
+import { reviewQueueCount } from "@/server/suggestions";
 import { cleanQuery } from "@/server/ownership";
 import { Empty, PageHead, SearchForm } from "@/components/ui";
 import { daysSince, formatGrams, type AppLocale } from "@/lib/format";
 import { num } from "@/lib/decimal";
+import { sharedImageUrl } from "./shared-facts";
 
 export async function generateMetadata() {
   const t = await getTranslations("coffees");
@@ -19,7 +21,7 @@ export default async function CoffeesPage({ searchParams }: { searchParams: Prom
   const params = await searchParams;
   const q = cleanQuery(params.q);
   const includeArchived = params.archived === "1";
-  const coffees = await listCoffees(user.id, { q, includeArchived });
+  const [coffees, toReview] = await Promise.all([listCoffees(user.id, { q, includeArchived }), reviewQueueCount(user)]);
 
   return (
     <>
@@ -28,9 +30,17 @@ export default async function CoffeesPage({ searchParams }: { searchParams: Prom
         subtitle={t("subtitle")}
         actions={
           <>
+            <Link className="btn" href="/coffees/shared">
+              {t("sharedCatalogue")}
+            </Link>
             <Link className="btn" href="/roasters">
               {t("roasters")}
             </Link>
+            {toReview > 0 ? (
+              <Link className="btn" href="/coffees/suggestions">
+                {t("toReview", { count: toReview })}
+              </Link>
+            ) : null}
             <Link className="btn btn-primary" href="/coffees/new">
               {t("add")}
             </Link>
@@ -48,25 +58,26 @@ export default async function CoffeesPage({ searchParams }: { searchParams: Prom
         <Empty action={q ? undefined : <Link className="btn btn-primary" href="/coffees/new">{t("add")}</Link>}>{q ? t("noResults") : t("empty")}</Empty>
       ) : (
         <ul className="list">
-          {coffees.map((coffee) => {
+          {coffees.map(({ sharedCoffee: shared, ...coffee }) => {
+            const image = sharedImageUrl(shared);
             const age = daysSince(coffee.roastDate);
             const remaining = num(coffee.remainingWeightG);
             return (
               <li key={coffee.id}>
                 <Link className="list-item" href={`/coffees/${coffee.id}`}>
-                  {coffee.imageUpdatedAt ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- private, owner-only image route
-                    <img className="thumb" src={`/api/coffees/${coffee.id}/image?v=${coffee.imageUpdatedAt.getTime()}`} alt="" />
+                  {image ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- signed-in-only image route
+                    <img className="thumb" src={image} alt="" />
                   ) : (
                     <span className="thumb" aria-hidden="true" />
                   )}
                   <div className="grow">
-                    <div className="title">{coffee.name}</div>
+                    <div className="title">{shared.name}</div>
                     <div className="meta">
                       {[
-                        coffee.roasterNameSnapshot,
-                        coffee.country,
-                        coffee.process,
+                        shared.roasterNameSnapshot,
+                        shared.country,
+                        shared.process,
                         age !== null ? t("daysSinceRoast", { days: age }) : null,
                         remaining !== null ? t("remaining", { amount: formatGrams(remaining, locale, 0) }) : null,
                         t("brewCount", { count: coffee._count.brews }),

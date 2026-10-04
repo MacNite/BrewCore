@@ -1,24 +1,20 @@
 import { z } from "zod";
-import type { Prisma, RoastLevel } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { optionalNumber } from "@/lib/brewing/recipe";
 import { GOOD_RATING } from "@/lib/brewing/tasting";
 import { splitList } from "@/lib/format";
 import { NotFoundError } from "./errors";
-import { contains, notArchived, ownedBy } from "./ownership";
+import { canEditShared, contains, notArchived, ownedBy, type Actor } from "./ownership";
+import { sharedCoffeeData, text, updateSharedCoffee, type SharedCoffeeInput } from "./shared-coffees";
 
-export const ROAST_LEVELS = ["LIGHT", "MEDIUM_LIGHT", "MEDIUM", "MEDIUM_DARK", "DARK", "UNKNOWN"] as const satisfies readonly RoastLevel[];
+/**
+ * A member's own bag of a shared coffee (§7): the roast date, weights, own
+ * tags and notes - private to its owner. What is printed on the bag lives on
+ * the `SharedCoffee` (`shared-coffees.ts`), visible to everyone.
+ */
 
-/** Suggested in the UI; any free text is accepted (§7). */
-export const COMMON_PROCESSES = ["Washed", "Natural", "Honey", "Anaerobic", "Carbonic Maceration", "Experimental", "Other"];
-
-const text = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max)
-    .optional()
-    .transform((value) => value || null);
+export { COMMON_PROCESSES, ROAST_LEVELS } from "./shared-coffees";
 
 const date = z
   .string()
@@ -32,40 +28,27 @@ const date = z
     return new Date(`${value}T00:00:00.000Z`);
   });
 
-const altitude = z.preprocess(
-  (value) => (value === "" || value === undefined || value === null ? null : Number(String(value).replace(",", "."))),
-  z.number().int().min(0).max(9000).nullable(),
-);
+export const bagInput = z.object({
+  roastDate: date,
+  purchaseDate: date,
+  openedDate: date,
+  bagWeightG: optionalNumber(100_000),
+  remainingWeightG: optionalNumber(100_000),
+  userTags: z.unknown().transform((value) => splitList(value)),
+  notes: text(4000),
+});
+export type BagInput = z.infer<typeof bagInput>;
 
-export const coffeeInput = z
-  .object({
-    name: z.string().trim().min(1).max(160),
-    roasterName: text(120),
-    country: text(80),
-    region: text(120),
-    farm: text(120),
-    producer: text(120),
-    varieties: z.unknown().transform((value) => splitList(value)),
-    process: text(80),
-    processingNotes: text(2000),
-    altitudeMinMasl: altitude,
-    altitudeMaxMasl: altitude,
-    roastLevel: z.enum(ROAST_LEVELS).default("UNKNOWN"),
-    roastDate: date,
-    purchaseDate: date,
-    openedDate: date,
-    bagWeightG: optionalNumber(100_000),
-    remainingWeightG: optionalNumber(100_000),
-    roasterTastingNotes: z.unknown().transform((value) => splitList(value)),
-    userTags: z.unknown().transform((value) => splitList(value)),
-    description: text(4000),
-    notes: text(4000),
-  })
-  .refine((c) => c.altitudeMinMasl === null || c.altitudeMaxMasl === null || c.altitudeMaxMasl >= c.altitudeMinMasl, {
-    message: "altitudeRange",
-    path: ["altitudeMaxMasl"],
-  });
-export type CoffeeInput = z.infer<typeof coffeeInput>;
+/** The shared columns a bag list or detail shows. */
+const sharedSummary = {
+  id: true,
+  name: true,
+  roasterNameSnapshot: true,
+  country: true,
+  process: true,
+  roastLevel: true,
+  imageUpdatedAt: true,
+} satisfies Prisma.SharedCoffeeSelect;
 
 export async function listCoffees(userId: string, options: { q?: string; includeArchived?: boolean } = {}) {
   const q = options.q;
@@ -74,43 +57,59 @@ export async function listCoffees(userId: string, options: { q?: string; include
       ...ownedBy(userId),
       ...(options.includeArchived ? {} : notArchived),
       ...(q
-        ? { OR: [{ name: contains(q) }, { roasterNameSnapshot: contains(q) }, { country: contains(q) }, { region: contains(q) }, { process: contains(q) }] }
+        ? {
+            OR: [
+              { sharedCoffee: { OR: [{ name: contains(q) }, { roasterNameSnapshot: contains(q) }, { country: contains(q) }, { region: contains(q) }, { process: contains(q) }] } },
+              { userTags: { has: q } },
+            ],
+          }
         : {}),
     },
     orderBy: [{ archivedAt: { sort: "asc", nulls: "first" } }, { updatedAt: "desc" }],
     select: {
       id: true,
-      name: true,
-      roasterNameSnapshot: true,
-      country: true,
-      process: true,
-      roastLevel: true,
       roastDate: true,
       remainingWeightG: true,
       archivedAt: true,
-      imageUpdatedAt: true,
+      sharedCoffee: { select: sharedSummary },
       _count: { select: { brews: true } },
     },
   });
 }
 
-/** Finds the caller's roaster by name, or creates it; null for no roaster. */
-async function resolveRoaster(tx: Prisma.TransactionClient, userId: string, name: string | null) {
-  if (!name) return null;
-  const existing = await tx.roaster.findFirst({ where: { ownerId: userId, name: { equals: name, mode: "insensitive" } } });
-  if (existing) return existing;
-  return tx.roaster.create({ data: { ownerId: userId, name } });
-}
+/**
+ * What a coffee form saves. `shared` is the bag's coffee: new values (a new
+ * shared coffee, or an edit of the bag's one) or the id of an existing shared
+ * coffee to add a bag of. Leaving it out on an edit changes only the bag.
+ */
+export type SaveCoffee = { bag: BagInput; shared?: { input: SharedCoffeeInput } | { id: string } };
 
-export async function saveCoffee(userId: string, input: CoffeeInput, id?: string) {
-  const { roasterName, ...fields } = input;
+/**
+ * Creates or updates a bag, and with it the shared coffee where asked.
+ *
+ * A new shared coffee is created by the caller; editing an existing one goes
+ * through `updateSharedCoffee`, so only its creator or an administrator can.
+ */
+export async function saveCoffee(actor: Actor, save: SaveCoffee, id?: string) {
   return prisma.$transaction(async (tx) => {
-    const roaster = await resolveRoaster(tx, userId, roasterName);
-    const data = { ...fields, roasterId: roaster?.id ?? null, roasterNameSnapshot: roaster?.name ?? null };
-    if (!id) return tx.coffee.create({ data: { ...data, ownerId: userId } });
-    const updated = await tx.coffee.updateMany({ where: { id, ...ownedBy(userId) }, data });
-    if (updated.count !== 1) throw new NotFoundError("coffee");
-    return tx.coffee.findUniqueOrThrow({ where: { id } });
+    if (!id) {
+      let sharedCoffeeId: string;
+      if (!save.shared) throw new NotFoundError("coffee");
+      if ("id" in save.shared) {
+        const existing = await tx.sharedCoffee.findUnique({ where: { id: save.shared.id }, select: { id: true } });
+        if (!existing) throw new NotFoundError("coffee");
+        sharedCoffeeId = existing.id;
+      } else {
+        const created = await tx.sharedCoffee.create({ data: { ...(await sharedCoffeeData(tx, actor.id, save.shared.input)), createdById: actor.id }, select: { id: true } });
+        sharedCoffeeId = created.id;
+      }
+      return tx.coffee.create({ data: { ...save.bag, ownerId: actor.id, sharedCoffeeId } });
+    }
+
+    const bag = await tx.coffee.findFirst({ where: { id, ...ownedBy(actor.id) }, select: { sharedCoffeeId: true } });
+    if (!bag) throw new NotFoundError("coffee");
+    if (save.shared && "input" in save.shared) await updateSharedCoffee(tx, actor, bag.sharedCoffeeId, save.shared.input);
+    return tx.coffee.update({ where: { id }, data: save.bag });
   });
 }
 
@@ -119,32 +118,19 @@ export async function setCoffeeArchived(userId: string, id: string, archived: bo
   if (updated.count !== 1) throw new NotFoundError("coffee");
 }
 
-export async function setCoffeeImage(userId: string, id: string, image: { mime: string; data: Buffer } | null) {
-  const updated = await prisma.coffee.updateMany({
-    where: { id, ...ownedBy(userId) },
-    data: image
-      ? { imageData: new Uint8Array(image.data), imageMime: image.mime, imageUpdatedAt: new Date() }
-      : { imageData: null, imageMime: null, imageUpdatedAt: null },
-  });
-  if (updated.count !== 1) throw new NotFoundError("coffee");
-}
-
-export async function getCoffeeImage(userId: string, id: string) {
-  return prisma.coffee.findFirst({ where: { id, ...ownedBy(userId), imageData: { not: null } }, select: { imageData: true, imageMime: true, imageUpdatedAt: true } });
-}
-
-export async function getCoffee(userId: string, id: string) {
-  const coffee = await prisma.coffee.findFirst({ where: { id, ...ownedBy(userId) }, omit: { imageData: true } });
+/** A bag with its shared coffee, and whether the caller may edit the latter. */
+export async function getCoffee(actor: Actor, id: string) {
+  const coffee = await prisma.coffee.findFirst({ where: { id, ...ownedBy(actor.id) }, include: { sharedCoffee: { omit: { imageData: true } } } });
   if (!coffee) throw new NotFoundError("coffee");
-  return coffee;
+  return { ...coffee, canEditShared: canEditShared(actor, coffee.sharedCoffee) };
 }
 
 /** Everything the coffee detail screen shows (§34). */
-export async function getCoffeeDetail(userId: string, id: string) {
+export async function getCoffeeDetail(actor: Actor, id: string) {
+  const userId = actor.id;
   const coffee = await prisma.coffee.findFirst({
     where: { id, ...ownedBy(userId) },
-    omit: { imageData: true },
-    include: { roaster: { select: { id: true, name: true, archivedAt: true } } },
+    include: { sharedCoffee: { omit: { imageData: true }, include: { roaster: { select: { id: true, name: true, archivedAt: true } } } } },
   });
   if (!coffee) throw new NotFoundError("coffee");
 
@@ -183,6 +169,7 @@ export async function getCoffeeDetail(userId: string, id: string) {
 
   return {
     coffee,
+    canEditShared: canEditShared(actor, coffee.sharedCoffee),
     stats: { brewCount: count, averageRating: rating._avg.rating, ratedCount: rating._count.rating },
     recent,
     best,

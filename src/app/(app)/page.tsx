@@ -94,9 +94,9 @@ export default async function HomePage() {
                   <li key={coffee.id}>
                     <Link className="list-item" href={`/coffees/${coffee.id}`}>
                       <div className="grow">
-                        <div className="title">{coffee.name}</div>
+                        <div className="title">{coffee.sharedCoffee.name}</div>
                         <div className="meta">
-                          {[coffee.roasterNameSnapshot, age !== null ? t("daysSinceRoast", { days: age }) : null, remaining !== null ? t("remaining", { amount: formatGrams(remaining, locale, 0) }) : null]
+                          {[coffee.sharedCoffee.roasterNameSnapshot, age !== null ? t("daysSinceRoast", { days: age }) : null, remaining !== null ? t("remaining", { amount: formatGrams(remaining, locale, 0) }) : null]
                             .filter(Boolean)
                             .join(" · ")}
                         </div>

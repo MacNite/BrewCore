@@ -217,13 +217,45 @@ Catalogue-type entities (`Roaster`, `GrinderModel`, `Brewer`, `Recipe`) use a
 - `ownerId = <user>` → entry created by that user, visible and editable only
   by them.
 
-Purely personal entities (`Coffee`, `UserGrinder`, `Brew`, `Favorite`) always
-have a non-null `ownerId`. `Tasting`, `BrewStepResult` and `RecipeStep`
+Purely personal entities (`Coffee` — a member's bag —, `UserGrinder`, `Brew`,
+`Favorite`) always have a non-null `ownerId`.
+
+### Shared entities (coffee sharing)
+
+`SharedCoffee` and `Roaster` are shared by every member of the instance. They
+carry a nullable `createdById` instead of an `ownerId`: the creator and
+administrators edit them; everyone else may only fill empty fields through a
+`CatalogSuggestion`, which the creator or an administrator accepts or rejects.
+`createdById` is `SetNull` on account deletion — the entry stays for everyone
+else and is then edited by administrators. `Tasting`, `BrewStepResult` and `RecipeStep`
 inherit ownership from their parent.
 
 ---
 
 ## 7. Coffee model
+
+**Coffee sharing (decision 21):** a coffee is split in two. The `SharedCoffee`
+is what is printed on the bag and is visible to every member; the member's
+`Coffee` is their own bag of it and private. The field list below is the
+union; the split is:
+
+- **Shared (`SharedCoffee`):** name, roaster (`roasterId`,
+  `roasterNameSnapshot`), country, region, farm, producer, varieties, process,
+  processingNotes, altitude, roastLevel, roasterTastingNotes, description,
+  photo.
+- **Personal (`Coffee`, the bag):** `sharedCoffeeId`, roastDate, purchaseDate,
+  openedDate, bagWeightG, remainingWeightG, userTags, notes, archivedAt.
+
+A member may have several bags of the same shared coffee (different roast
+dates). Brews and favorites point at the bag; brews keep their snapshots, so
+editing or merging a shared coffee never changes history (§19).
+
+While a new coffee is entered, similar shared coffees are offered (fuzzy match
+on name, roaster and country; `src/lib/catalogue/similarity.ts`) so the member
+adds a bag of the existing one instead of a duplicate. Administrators merge
+remaining duplicates at `/admin/duplicates`: the kept entry's empty fields are
+filled from the other, bags and open suggestions move over, the other entry is
+deleted.
 
 A `Coffee` represents a specific coffee/bag owned by the user — not only a
 generic bean name.
@@ -298,6 +330,12 @@ Roaster
 In the MVP roasters are user-created (`ownerId` set). A global community
 catalogue may be added later using `ownerId = null`. Do not block the MVP on a
 public roaster database.
+
+**Coffee sharing (decision 21):** roasters are shared across the instance.
+`ownerId` became `createdById` (who added it; may edit, like administrators).
+Typing a roaster name that already exists (case-insensitive) reuses that
+roaster. Others fill empty fields through suggestions; duplicates are merged by
+administrators.
 
 ---
 
@@ -1153,6 +1191,10 @@ Rules:
 - References must be checked too: a Brew may only reference the user's own
   coffee/grinder and recipes that are either theirs or bundled.
 - Never rely on the UI to prevent cross-user access.
+- Shared rows (`SharedCoffee`, `Roaster`) are readable by every signed-in
+  member and writable only by their creator or an administrator
+  (`canEditShared`); a suggestion is decided by the same people. A bag
+  (`Coffee`) and everything personal on it stay owner-only.
 
 ---
 
@@ -1324,6 +1366,11 @@ Functions in these files should be pure and unit-tested.
 /coffees/new
 /coffees/[id]
 /coffees/[id]/edit
+/coffees/shared                 all shared coffees
+/coffees/shared/[id]            a shared coffee (add a bag, edit, suggest, review)
+/coffees/shared/[id]/edit       creator/admin only
+/coffees/shared/[id]/suggest    fill empty fields
+/coffees/suggestions            review queue (creator: own entries; admin: all)
 
 /roasters
 /roasters/[id]
@@ -1351,6 +1398,7 @@ Functions in these files should be pure and unit-tested.
 /settings
 
 /admin
+/admin/duplicates       merge duplicate coffees and roasters
 ```
 
 ---
@@ -1527,6 +1575,11 @@ instead of an `imagePath`), so backups include it and no upload volume is
 needed. The type is decided from the bytes (JPEG/PNG/WebP), the size limit is
 `IMAGE_UPLOAD_MAX_MB` (default 5), oversized photos are shrunk in the browser
 first, and the image is served only to its owner.
+
+**Coffee sharing (decision 21):** the photo moved to `SharedCoffee` and is
+served to every signed-in member (`/api/shared-coffees/[id]/image`). A photo
+proposed in a suggestion (only for a coffee without one) is served to its
+author and the deciders, and its bytes are dropped once it is decided.
 
 ---
 
@@ -2335,3 +2388,4 @@ spec, NutriCore, or the priority order.
 
 | 19 | Bundled grinder models carry recommended grind settings per brew method as catalogue data looked up by slug (no schema change). Each value cites its source and marks it manufacturer or community guide; a recipe's brew method maps to a chart row (hybrid → pour-over; generic immersion, cupping and other → none). The last setting used with a recipe and grinder takes precedence over the recommendation in brew setup. | §9, §17 |
 | 20 | Brew setup scales from either side: typing the water derives the coffee at the recipe ratio and keeps the typed water exactly; a "Keep the recipe ratio" checkbox switches to a custom ratio where coffee and water are independent. Brew Again starts with the custom ratio. | §16 |
+| 21 | **User decision:** coffee sharing. Coffees and roasters are shared instance-wide as soon as they are created; existing coffees were migrated to shared coffees (same id, creator = owner) plus the owner's bag. Shared: what is on the bag (name, roaster, origin, process, varieties, altitude, roast level, roaster tasting notes, description, photo). Personal: roast/purchase/opened date, weights, own tags, notes, archive. Similar coffees are suggested while adding one; administrators merge duplicates. The creator and administrators edit an entry; anyone else may only fill empty fields (and a missing photo) as a suggestion the creator or an administrator accepts — accepting never overwrites a field filled in the meantime. Other members see no bags, brews or ratings, only the shared entry and who added it. JSON export is format version 2. | §6, §7, §8, §45, §65, §68 |

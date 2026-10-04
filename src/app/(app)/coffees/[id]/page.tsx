@@ -7,38 +7,30 @@ import { BrewRow, Empty, FavoriteButton, PageHead, Rating } from "@/components/u
 import { ConfirmSubmit } from "@/components/form-bits";
 import { daysSince, formatDate, formatGrams, formatNumber, type AppLocale } from "@/lib/format";
 import { num } from "@/lib/decimal";
+import { SharedCoffeeFacts } from "../shared-facts";
 
 export default async function CoffeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requirePageUser();
   const { id } = await params;
   const t = await getTranslations("coffees");
   const locale = (await getLocale()) as AppLocale;
-  const { coffee, stats, recent, best, favoriteRecipe, lastGrind, isFavorite } = await orNotFound(getCoffeeDetail(user.id, id));
+  const { coffee, stats, recent, best, favoriteRecipe, lastGrind, isFavorite } = await orNotFound(getCoffeeDetail(user, id));
+  const shared = coffee.sharedCoffee;
   const age = daysSince(coffee.roastDate);
   const remaining = num(coffee.remainingWeightG);
-  const altitude =
-    coffee.altitudeMinMasl !== null || coffee.altitudeMaxMasl !== null
-      ? [coffee.altitudeMinMasl, coffee.altitudeMaxMasl].filter((v) => v !== null).join("–") + " m"
-      : null;
 
-  const facts: [string, React.ReactNode][] = [
-    [t("fields.roaster"), coffee.roaster ? <Link href={`/roasters/${coffee.roaster.id}`}>{coffee.roaster.name}</Link> : coffee.roasterNameSnapshot],
-    [t("fields.origin"), [coffee.country, coffee.region, coffee.farm].filter(Boolean).join(", ") || null],
-    [t("fields.producer"), coffee.producer],
-    [t("fields.varieties"), coffee.varieties.join(", ") || null],
-    [t("fields.process"), coffee.process],
-    [t("fields.altitude"), altitude],
-    [t("fields.roastLevel"), t(`roastLevels.${coffee.roastLevel}`)],
+  // The bag's own facts, private to its owner, after the shared ones.
+  const bagFacts: [string, React.ReactNode][] = [
     [t("fields.roastDate"), coffee.roastDate ? `${formatDate(coffee.roastDate, locale)} (${t("daysSinceRoast", { days: age ?? 0 })})` : null],
     [t("fields.remaining"), remaining !== null ? formatGrams(remaining, locale, 0) : null],
-    [t("fields.tastingNotes"), coffee.roasterTastingNotes.join(", ") || null],
+    [t("fields.tags"), coffee.userTags.join(", ") || null],
   ];
 
   return (
     <>
       <PageHead
-        title={coffee.name}
-        subtitle={coffee.archivedAt ? <span className="badge">{t("archived")}</span> : coffee.roasterNameSnapshot}
+        title={shared.name}
+        subtitle={coffee.archivedAt ? <span className="badge">{t("archived")}</span> : shared.roasterNameSnapshot}
         actions={
           <>
             <Link className="btn btn-primary btn-large" href={`/brew/new?coffeeId=${coffee.id}`}>
@@ -55,25 +47,11 @@ export default async function CoffeeDetailPage({ params }: { params: Promise<{ i
       <div className="grid grid-2">
         <section className="card" aria-labelledby="facts-heading">
           <h2 id="facts-heading">{t("details")}</h2>
-          {coffee.imageUpdatedAt ? (
-            // eslint-disable-next-line @next/next/no-img-element -- private, owner-only image route
-            <img
-              src={`/api/coffees/${coffee.id}/image?v=${coffee.imageUpdatedAt.getTime()}`}
-              alt={t("photoAlt", { name: coffee.name })}
-              style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 12, marginBottom: 12 }}
-            />
-          ) : null}
-          <dl className="facts">
-            {facts
-              .filter(([, value]) => value)
-              .map(([label, value]) => (
-                <div key={label} style={{ display: "contents" }}>
-                  <dt>{label}</dt>
-                  <dd>{value}</dd>
-                </div>
-              ))}
-          </dl>
+          <SharedCoffeeFacts coffee={shared} extra={bagFacts} />
           {coffee.notes ? <p style={{ whiteSpace: "pre-wrap" }}>{coffee.notes}</p> : null}
+          <p className="small">
+            <Link href={`/coffees/shared/${shared.id}`}>{t("sharedEntry")}</Link>
+          </p>
         </section>
 
         <section className="card" aria-labelledby="stats-heading">

@@ -47,12 +47,32 @@ describeDb("brewing against PostgreSQL", async () => {
 
   afterAll(async () => {
     await prisma.user.deleteMany({ where: { id: { in: [alice, bob] } } });
+    // Shared entries outlive their creator's account; remove this run's.
+    await prisma.sharedCoffee.deleteMany({ where: { name: { endsWith: stamp } } });
+    await prisma.roaster.deleteMany({ where: { name: { endsWith: stamp } } });
     await prisma.$disconnect();
   });
 
+  /** A user acting as themselves, as the Server Actions pass the session user. */
+  const as = (id: string) => ({ id, role: "USER" as const });
+
+  /** A new coffee the way its form saves it: the shared coffee and the bag. */
   const coffeeInput = (name: string) => ({
-    name,
-    roasterName: "Integration Roastery",
+    shared: { input: sharedInput(name) },
+    bag: {
+      roastDate: new Date("2026-09-01T00:00:00Z"),
+      purchaseDate: null,
+      openedDate: null,
+      bagWeightG: 250,
+      remainingWeightG: 250,
+      userTags: [],
+      notes: null,
+    },
+  });
+
+  const sharedInput = (name: string) => ({
+    name: `${name} ${stamp}`,
+    roasterName: `Integration Roastery ${stamp}`,
     country: null,
     region: null,
     farm: null,
@@ -63,15 +83,8 @@ describeDb("brewing against PostgreSQL", async () => {
     altitudeMinMasl: null,
     altitudeMaxMasl: null,
     roastLevel: "LIGHT" as const,
-    roastDate: new Date("2026-09-01T00:00:00Z"),
-    purchaseDate: null,
-    openedDate: null,
-    bagWeightG: 250,
-    remainingWeightG: 250,
     roasterTastingNotes: [],
-    userTags: [],
     description: null,
-    notes: null,
   });
 
   const start = (userId: string, extra: Record<string, unknown> = {}) =>
@@ -104,23 +117,23 @@ describeDb("brewing against PostgreSQL", async () => {
   });
 
   it("creates a brew with scaled snapshots in one go", async () => {
-    const coffee = await saveCoffee(alice, coffeeInput("Snapshot Coffee"));
+    const coffee = await saveCoffee(as(alice), coffeeInput("Snapshot Coffee"));
     const { id } = await start(alice, { coffeeId: coffee.id });
     const { brew, snapshot } = await getBrewDetail(alice, id);
     expect(brew.status).toBe("IN_PROGRESS");
-    expect(brew.coffeeNameSnapshot).toBe("Snapshot Coffee");
-    expect(brew.roasterSnapshot).toBe("Integration Roastery");
+    expect(brew.coffeeNameSnapshot).toBe(`Snapshot Coffee ${stamp}`);
+    expect(brew.roasterSnapshot).toBe(`Integration Roastery ${stamp}`);
     expect(Number(brew.ratio)).toBe(16);
     expect(snapshot?.steps.map((s) => s.waterTargetG).filter((w) => w !== null)).toEqual([75, 250, 400]);
     expect(brew.brewerSnapshot).toBe("Hario V60 02");
   });
 
   it("keeps yesterday's brew when the coffee and recipe change today", async () => {
-    const coffee = await saveCoffee(alice, coffeeInput("Before Rename"));
+    const coffee = await saveCoffee(as(alice), coffeeInput("Before Rename"));
     const copy = await duplicateRecipe(alice, v60, "(copy)", "en");
     const { id } = await start(alice, { coffeeId: coffee.id, recipeId: copy.id });
 
-    await saveCoffee(alice, { ...coffeeInput("After Rename") }, coffee.id);
+    await saveCoffee(as(alice), { ...coffeeInput("After Rename") }, coffee.id);
     const plain = recipeToPlain(await getRecipe(alice, copy.id));
     await saveRecipe(
       alice,
@@ -137,7 +150,7 @@ describeDb("brewing against PostgreSQL", async () => {
     );
 
     const { brew, snapshot } = await getBrewDetail(alice, id);
-    expect(brew.coffeeNameSnapshot).toBe("Before Rename");
+    expect(brew.coffeeNameSnapshot).toBe(`Before Rename ${stamp}`);
     expect(brew.recipeNameSnapshot).toBe("V60 Two-Pour (copy)");
     expect(snapshot?.steps).toHaveLength(8);
   });
@@ -182,7 +195,7 @@ describeDb("brewing against PostgreSQL", async () => {
   });
 
   it("refuses references to another user's records", async () => {
-    const coffee = await saveCoffee(alice, coffeeInput("Alice only"));
+    const coffee = await saveCoffee(as(alice), coffeeInput("Alice only"));
     await expect(start(bob, { coffeeId: coffee.id })).rejects.toBeInstanceOf(NotFoundError);
     const aliceRecipe = await duplicateRecipe(alice, v60, "(copy)", "en");
     await expect(start(bob, { recipeId: aliceRecipe.id })).rejects.toBeInstanceOf(NotFoundError);
@@ -220,11 +233,11 @@ describeDb("brewing against PostgreSQL", async () => {
   });
 
   it("keeps brews when their coffee is deleted", async () => {
-    const coffee = await saveCoffee(alice, coffeeInput("Short-lived"));
+    const coffee = await saveCoffee(as(alice), coffeeInput("Short-lived"));
     const { id } = await start(alice, { coffeeId: coffee.id });
     await prisma.coffee.delete({ where: { id: coffee.id } });
     const { brew } = await getBrewDetail(alice, id);
     expect(brew.coffeeId).toBeNull();
-    expect(brew.coffeeNameSnapshot).toBe("Short-lived");
+    expect(brew.coffeeNameSnapshot).toBe(`Short-lived ${stamp}`);
   });
 });

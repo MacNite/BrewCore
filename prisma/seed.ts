@@ -34,7 +34,7 @@ async function main() {
     const roaster = await prisma.roaster.upsert({
       where: { id: `demo-roaster-${user.id}` },
       update: {},
-      create: { id: `demo-roaster-${user.id}`, ownerId: user.id, name: "Example Roastery", country: "Germany", notes: "Example data" },
+      create: { id: `demo-roaster-${user.id}`, createdById: user.id, name: "Example Roastery", country: "Germany", notes: "Example data" },
     });
 
     const coffees = [
@@ -44,12 +44,13 @@ async function main() {
     ];
     for (const [index, coffee] of coffees.entries()) {
       const id = `demo-coffee-${index}-${user.id}`;
-      await prisma.coffee.upsert({
+      // Shared coffees are visible to every member of the instance (§7).
+      await prisma.sharedCoffee.upsert({
         where: { id },
         update: {},
         create: {
           id,
-          ownerId: user.id,
+          createdById: user.id,
           name: coffee.name,
           roasterId: roaster.id,
           roasterNameSnapshot: roaster.name,
@@ -57,10 +58,20 @@ async function main() {
           region: coffee.region,
           process: coffee.process,
           roastLevel: coffee.roastLevel,
+          roasterTastingNotes: coffee.notes,
+          description: "Example data from the demo seed.",
+        },
+      });
+      await prisma.coffee.upsert({
+        where: { id },
+        update: {},
+        create: {
+          id,
+          ownerId: user.id,
+          sharedCoffeeId: id,
           roastDate: new Date(Date.now() - (10 + index * 5) * 86_400_000),
           bagWeightG: 250,
           remainingWeightG: 250 - index * 60,
-          roasterTastingNotes: coffee.notes,
           userTags: ["example"],
           notes: "Example data from the demo seed.",
         },
