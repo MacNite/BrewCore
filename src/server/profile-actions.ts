@@ -67,6 +67,8 @@ export async function changePasswordAction(_state: FormState, formData: FormData
   if (problem === "too-short") return { error: "tooShort" };
   if (problem === "too-common") return { error: "tooCommon" };
 
+  // No password to confirm: the provider manages this account's credentials.
+  if (user.ssoOnly) return { error: "ssoManaged" };
   const account = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { passwordHash: true } });
   if (!(await verifyPassword(account.passwordHash, current))) return { error: "wrongPassword" };
 

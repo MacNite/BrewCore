@@ -17,6 +17,7 @@ import { requireAdmin, requireUser, startSession } from "./session";
 import { durableRateLimitOrFallback } from "./durable-rate-limit";
 import { issueInvitation, redeemableInvitation } from "./admin";
 import { mergeRoasters, mergeSharedCoffees } from "./catalogue-merge";
+import { passwordLoginEnabled } from "@/lib/oidc";
 
 export async function inviteUserAction(formData: FormData) {
   const admin = await requireAdmin();
@@ -97,6 +98,8 @@ export async function acceptInvitationAction(formData: FormData) {
   const token = String(formData.get("token") ?? "");
   const back = (error: string) => redirect(`/invite/${encodeURIComponent(token)}?error=${error}`);
   if (!limit.allowed) back("rateLimited");
+  // Invitations are redeemed by signing in through the provider instead.
+  if (!passwordLoginEnabled()) redirect(`/invite/${encodeURIComponent(token)}`);
 
   const parsed = z
     .object({

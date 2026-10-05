@@ -66,4 +66,7 @@ export const RATE_LIMITS = {
   /* Offline completions are retried by the outbox; generous enough that a
      phone coming back online with a queue never trips it. */
   brewSync: scaled(240, 60 * 60 * 1000),
+  /* Single sign-on callbacks. Each one costs a token exchange with the
+     provider, so they are bounded like sign-in attempts. */
+  sso: scaled(20, 15 * 60 * 1000),
 };

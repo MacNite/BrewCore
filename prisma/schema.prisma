@@ -29,6 +29,8 @@ model User {
   role               UserRole @default(USER)
   active             Boolean  @default(true)
   mustChangePassword Boolean  @default(false)
+  /// The OIDC `sub` this account is linked to, set on its first single sign-on.
+  oidcSubject        String?  @unique
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -70,6 +72,8 @@ model Session {
   userId    String
   createdAt DateTime @default(now())
   expiresAt DateTime
+  /// Set for a single sign-on session: the `id_token_hint` for single logout.
+  oidcIdToken String?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])

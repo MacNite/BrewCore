@@ -14,6 +14,8 @@ import { endSession, startSession } from "./session";
 import { RegistrationClosedError, createSelfRegisteredUser } from "./registration";
 import { durableRateLimitOrFallback } from "./durable-rate-limit";
 import { safeNextPath } from "@/lib/url";
+import { endSessionUrl, oidcConfig, passwordLoginEnabled, postLogoutRedirectUri } from "@/lib/oidc";
+import { discover } from "./oidc";
 
 export interface AuthState {
   error?: string;
@@ -82,6 +84,15 @@ export async function loginAction(_state: AuthState, formData: FormData): Promis
     return { error: "invalidCredentials" };
   }
 
+  /* With password sign-in switched off, a password still works for
+     administrators - the break-glass for a provider that is down - and for
+     nobody else. Same answer as a wrong password, so the switch reveals
+     nothing about which accounts are administrators. */
+  if (!passwordLoginEnabled() && user.role !== "ADMIN") {
+    logger.warn("Password sign-in refused: single sign-on only", { userId: user.id });
+    return { error: "invalidCredentials" };
+  }
+
   await startSession(user.id);
   const profile = await prisma.userProfile.findUnique({ where: { userId: user.id } });
   const next = safeNextPath(formData.get("next"));
@@ -89,6 +100,8 @@ export async function loginAction(_state: AuthState, formData: FormData): Promis
 }
 
 export async function registerAction(_state: AuthState, formData: FormData): Promise<AuthState> {
+  // Accounts come from the provider when password sign-in is off.
+  if (!passwordLoginEnabled()) return { error: "registrationClosed" };
   const limit = await durableLimit(`register:${await clientKey()}`, RATE_LIMITS.register);
   if (!limit.allowed) return { error: "rateLimited", seconds: limit.retryAfterSeconds };
 
@@ -133,6 +146,20 @@ export async function registerAction(_state: AuthState, formData: FormData): Pro
 }
 
 export async function logoutAction() {
-  await endSession();
+  const { oidcIdToken } = await endSession();
+  const config = oidcConfig();
+  /* Single logout: a single sign-on session also ends at the provider, or the
+     next click on "Sign in with authentik" would sign straight back in. If the
+     provider cannot be reached the local session is still gone. */
+  if (oidcIdToken && config?.singleLogout) {
+    let target: string | undefined;
+    try {
+      const endpoint = (await discover(config)).end_session_endpoint;
+      if (endpoint) target = endSessionUrl(endpoint, config, oidcIdToken, postLogoutRedirectUri(env().APP_URL));
+    } catch (error) {
+      logger.warn("Single logout skipped: provider unreachable", { error: error instanceof Error ? error.message : String(error) });
+    }
+    if (target) redirect(target);
+  }
   redirect("/login");
 }

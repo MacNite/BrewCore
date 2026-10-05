@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
+import { SSO_ONLY_PASSWORD_HASH } from "@/lib/oidc";
 import { PASSWORD_CHANGE_COOKIE, SESSION_COOKIE, SESSION_TTL_MS, createSessionToken, hashSessionToken, securityCookieOptions } from "@/lib/auth";
 import type { Locale } from "@/i18n/locales";
 import { DEFAULT_LOCALE, isLocale } from "@/i18n/locales";
@@ -20,6 +21,8 @@ export interface SessionUser {
   cueVibration: boolean;
   role: "USER" | "ADMIN";
   mustChangePassword: boolean;
+  /** Created by single sign-on and never given a password: the provider manages its credentials. */
+  ssoOnly: boolean;
 }
 
 /**
@@ -49,7 +52,9 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     cueSound: user.profile?.cueSound ?? true,
     cueVibration: user.profile?.cueVibration ?? true,
     role: user.role,
-    mustChangePassword: user.mustChangePassword,
+    // A single sign-on session did not use the temporary password the gate exists to retire.
+    mustChangePassword: user.mustChangePassword && !session.oidcIdToken,
+    ssoOnly: user.passwordHash === SSO_ONLY_PASSWORD_HASH,
   };
 });
 
@@ -65,28 +70,44 @@ export async function requireAdmin(): Promise<SessionUser> {
   return user;
 }
 
-export async function startSession(userId: string) {
+/**
+ * `oidcIdToken` marks a single sign-on session. It is kept for the logout hint,
+ * and such a session skips the password-change gate: the person did not sign
+ * in with the temporary password that gate exists to retire.
+ */
+export async function startSession(userId: string, { oidcIdToken }: { oidcIdToken?: string } = {}) {
   const { token, tokenHash } = createSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  await prisma.session.create({ data: { userId, tokenHash, expiresAt } });
+  await prisma.session.create({ data: { userId, tokenHash, expiresAt, oidcIdToken: oidcIdToken ?? null } });
 
   const store = await cookies();
   const options = securityCookieOptions(expiresAt, process.env.APP_URL, (await headers()).get("origin"));
   store.set(SESSION_COOKIE, token, options);
   const account = await prisma.user.findUnique({ where: { id: userId }, select: { mustChangePassword: true } });
-  if (account?.mustChangePassword) store.set(PASSWORD_CHANGE_COOKIE, "1", options);
+  if (account?.mustChangePassword && !oidcIdToken) store.set(PASSWORD_CHANGE_COOKIE, "1", options);
 
   // Opportunistic cleanup keeps the session table from growing unbounded.
   await prisma.session.deleteMany({ where: { userId, expiresAt: { lte: new Date() } } });
   return token;
 }
 
-export async function endSession() {
+/**
+ * Ends the current session. Returns its single sign-on ID token, if it was a
+ * single sign-on session, so the caller can end the provider's session too.
+ */
+export async function endSession(): Promise<{ oidcIdToken: string | null }> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
-  if (token) await prisma.session.deleteMany({ where: { tokenHash: hashSessionToken(token) } });
+  let oidcIdToken: string | null = null;
+  if (token) {
+    const tokenHash = hashSessionToken(token);
+    const session = await prisma.session.findUnique({ where: { tokenHash }, select: { oidcIdToken: true } });
+    oidcIdToken = session?.oidcIdToken ?? null;
+    await prisma.session.deleteMany({ where: { tokenHash } });
+  }
   store.delete(SESSION_COOKIE);
   store.delete(PASSWORD_CHANGE_COOKIE);
+  return { oidcIdToken };
 }
 
 /**
