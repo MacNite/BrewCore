@@ -55,8 +55,18 @@
       "tooCommon": "That password is too common. Please choose another one.",
       "registrationClosed": "Registration is closed on this instance.",
       "usernameTaken": "That username is already taken.",
-      "emailTaken": "An account with this email already exists."
-    }
+      "emailTaken": "An account with this email already exists.",
+      "ssoFailed": "Single sign-on did not complete. Please try again.",
+      "ssoUnavailable": "The sign-in provider cannot be reached right now.",
+      "ssoNoAccount": "There is no account for your email address on this server. Ask an administrator for an invitation.",
+      "ssoUnverified": "Your sign-in provider has not confirmed your email address, so it cannot be matched to an account.",
+      "ssoInactive": "This account has been deactivated.",
+      "ssoConflict": "An account with this email address is already linked to a different identity. Ask an administrator.",
+      "ssoRateLimited": "Too many sign-in attempts. Please wait a few minutes and try again."
+    },
+    "signInWith": "Sign in with {provider}",
+    "orPassword": "or with your email and password",
+    "ssoOnlySubtitle": "This server signs you in through {provider}."
   },
   "account": {
     "changePasswordTitle": "Choose a new password",
@@ -77,7 +87,10 @@
       "weakPassword": "The password needs at least 10 characters and must not be a common one.",
       "expired": "This invitation is no longer valid.",
       "taken": "That username or email is already in use."
-    }
+    },
+    "inviteSso": "Sign in with {provider} as {email} to accept this invitation.",
+    "inviteOrPassword": "Or choose a username and a password:",
+    "inviteIntroSso": "You were invited as {email}."
   },
   "onboarding": {
     "title": "Welcome to BrewCore",
@@ -750,7 +763,8 @@
     "newPassword": "New password",
     "changePassword": "Change password",
     "passwordChanged": "Password changed.",
-    "admin": "Administration"
+    "admin": "Administration",
+    "passwordSsoManaged": "Your account signs in through {provider}. Manage your password there."
   },
   "admin": {
     "title": "Administration",

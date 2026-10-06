@@ -29,6 +29,7 @@ export function middleware(request: NextRequest) {
     nonce,
     https: (process.env.APP_URL ?? "").startsWith("https://"),
     development: process.env.NODE_ENV !== "production",
+    ssoOrigin: ssoOrigin(),
   });
 
   const requestHeaders = new Headers(request.headers);
@@ -41,13 +42,23 @@ export function middleware(request: NextRequest) {
   return response;
 }
 
+/** The provider's origin when single sign-on is switched on. */
+function ssoOrigin() {
+  if (process.env.OIDC_ENABLED !== "true" && process.env.OIDC_ENABLED !== "1") return undefined;
+  try {
+    return new URL(process.env.OIDC_ISSUER ?? "").origin;
+  } catch {
+    return undefined;
+  }
+}
+
 /** The password-change gate, which decides what kind of response this is. */
 function gate(request: NextRequest, requestHeaders: Headers) {
   const next = () => NextResponse.next({ request: { headers: requestHeaders } });
   if (request.cookies.get(PASSWORD_CHANGE_COOKIE)?.value !== "1") return next();
 
   const { pathname } = request.nextUrl;
-  const allowed = pathname === "/change-password" || pathname === "/login" || pathname === "/offline" || pathname.startsWith("/_next/");
+  const allowed = pathname === "/change-password" || pathname === "/login" || pathname === "/offline" || pathname.startsWith("/api/auth/oidc/") || pathname.startsWith("/_next/");
   return allowed ? next() : NextResponse.redirect(new URL("/change-password", request.url));
 }
 

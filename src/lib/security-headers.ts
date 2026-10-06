@@ -12,9 +12,15 @@ export interface HeaderOptions {
   https: boolean;
   /** `next dev` needs `unsafe-eval` for hot reloading; production must not have it. */
   development: boolean;
+  /**
+   * The single sign-on provider's origin, when there is one. Signing out of a
+   * single sign-on session is a form post that redirects there, and
+   * `form-action` covers redirects.
+   */
+  ssoOrigin?: string;
 }
 
-export function contentSecurityPolicy({ nonce, development }: HeaderOptions): string {
+export function contentSecurityPolicy({ nonce, development, ssoOrigin }: HeaderOptions): string {
   return [
     "default-src 'self'",
     /* `strict-dynamic` lets the nonced Next bootstrap load the chunks it needs.
@@ -33,7 +39,7 @@ export function contentSecurityPolicy({ nonce, development }: HeaderOptions): st
     "manifest-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    `form-action 'self'${ssoOrigin ? ` ${ssoOrigin}` : ""}`,
     "frame-ancestors 'none'",
   ].join("; ");
 }

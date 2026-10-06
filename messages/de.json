@@ -55,8 +55,18 @@
       "tooCommon": "Dieses Passwort ist zu verbreitet. Bitte wähle ein anderes.",
       "registrationClosed": "Die Registrierung ist auf dieser Instanz geschlossen.",
       "usernameTaken": "Dieser Benutzername ist bereits vergeben.",
-      "emailTaken": "Mit dieser E-Mail gibt es bereits ein Konto."
-    }
+      "emailTaken": "Mit dieser E-Mail gibt es bereits ein Konto.",
+      "ssoFailed": "Die Anmeldung über Single Sign-on wurde nicht abgeschlossen. Bitte versuche es erneut.",
+      "ssoUnavailable": "Der Anmeldedienst ist gerade nicht erreichbar.",
+      "ssoNoAccount": "Für deine E-Mail-Adresse gibt es auf diesem Server kein Konto. Bitte einen Administrator um eine Einladung.",
+      "ssoUnverified": "Dein Anmeldedienst hat deine E-Mail-Adresse nicht bestätigt, daher kann sie keinem Konto zugeordnet werden.",
+      "ssoInactive": "Dieses Konto wurde deaktiviert.",
+      "ssoConflict": "Ein Konto mit dieser E-Mail-Adresse ist bereits mit einer anderen Identität verknüpft. Bitte wende dich an einen Administrator.",
+      "ssoRateLimited": "Zu viele Anmeldeversuche. Bitte warte ein paar Minuten und versuche es erneut."
+    },
+    "signInWith": "Mit {provider} anmelden",
+    "orPassword": "oder mit E-Mail und Passwort",
+    "ssoOnlySubtitle": "Auf diesem Server meldest du dich über {provider} an."
   },
   "account": {
     "changePasswordTitle": "Neues Passwort wählen",
@@ -77,7 +87,10 @@
       "weakPassword": "Das Passwort braucht mindestens 10 Zeichen und darf kein verbreitetes sein.",
       "expired": "Diese Einladung ist nicht mehr gültig.",
       "taken": "Dieser Benutzername oder diese E-Mail wird bereits verwendet."
-    }
+    },
+    "inviteSso": "Melde dich mit {provider} als {email} an, um diese Einladung anzunehmen.",
+    "inviteOrPassword": "Oder wähle einen Benutzernamen und ein Passwort:",
+    "inviteIntroSso": "Du wurdest als {email} eingeladen."
   },
   "onboarding": {
     "title": "Willkommen bei BrewCore",
@@ -750,7 +763,8 @@
     "newPassword": "Neues Passwort",
     "changePassword": "Passwort ändern",
     "passwordChanged": "Passwort geändert.",
-    "admin": "Verwaltung"
+    "admin": "Verwaltung",
+    "passwordSsoManaged": "Dein Konto meldet sich über {provider} an. Verwalte dein Passwort dort."
   },
   "admin": {
     "title": "Verwaltung",

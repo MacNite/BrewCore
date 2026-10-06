@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getSessionUser } from "@/server/session";
 import { registrationAvailable } from "@/server/registration";
+import { passwordLoginEnabled } from "@/lib/oidc";
 import { Brand } from "@/components/brand";
 import { RegisterForm } from "./register-form";
 
@@ -15,7 +16,8 @@ export default async function RegisterPage() {
   if (await getSessionUser()) redirect("/");
   const t = await getTranslations("auth");
   // UX only. `registerAction` enforces the same policy for itself.
-  const open = await registrationAvailable();
+  // Accounts come from the single sign-on provider when password sign-in is off.
+  const open = passwordLoginEnabled() && (await registrationAvailable());
 
   return (
     <div className="auth-shell">

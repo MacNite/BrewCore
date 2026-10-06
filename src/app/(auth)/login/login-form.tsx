@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { loginAction, type AuthState } from "@/server/auth-actions";
 import { AuthError } from "@/components/auth-error";
 
-export function LoginForm({ next }: { next?: string }) {
+export function LoginForm({ next, autoFocus = true }: { next?: string; autoFocus?: boolean }) {
   const t = useTranslations("auth");
   const common = useTranslations("common");
   const [state, action, pending] = useActionState<AuthState, FormData>(loginAction, {});
@@ -17,7 +17,7 @@ export function LoginForm({ next }: { next?: string }) {
 
       <div className="field">
         <label htmlFor="email">{t("email")}</label>
-        <input id="email" name="email" type="email" autoComplete="email" required autoFocus />
+        <input id="email" name="email" type="email" autoComplete="email" required autoFocus={autoFocus} />
       </div>
 
       <div className="field">

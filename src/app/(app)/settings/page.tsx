@@ -5,6 +5,7 @@ import { PageHead } from "@/components/ui";
 import { LogoutButton } from "@/components/logout-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { PaletteToggle } from "@/components/palette-toggle";
+import { oidcConfig } from "@/lib/oidc";
 import { PasswordForm, ProfileForm } from "./settings-forms";
 
 export async function generateMetadata() {
@@ -43,7 +44,11 @@ export default async function SettingsPage() {
           </section>
           <section className="card" aria-labelledby="password-heading">
             <h2 id="password-heading">{t("password")}</h2>
-            <PasswordForm />
+            {user.ssoOnly ? (
+              <p className="muted">{t("passwordSsoManaged", { provider: oidcConfig()?.providerName ?? "SSO" })}</p>
+            ) : (
+              <PasswordForm />
+            )}
           </section>
           {user.role === "ADMIN" ? (
             <section className="card">

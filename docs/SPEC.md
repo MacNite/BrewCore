@@ -1212,6 +1212,36 @@ Reuse NutriCore's security model:
 
 Rename all NutriCore cookie names/constants (§3).
 
+**Decision: optional single sign-on (OpenID Connect, e.g. authentik).** Ported
+from NutriCore's implementation and policy, unchanged unless noted:
+
+- Authorization-code flow with PKCE (S256), state and nonce in a short-lived
+  HTTP-only cookie scoped to `/api/auth/oidc`; ID token signature (JWKS, or
+  HS256 with the client secret as authentik's fallback), issuer, audience and
+  expiry verified. Routes: `/api/auth/oidc/login`, `/api/auth/oidc/callback`.
+- **User mapping is by email, once.** The first SSO sign-in matches the
+  provider's email (lower-cased) to an existing account and binds that account
+  to the provider's `sub` (`User.oidcSubject`). Later sign-ins are recognised
+  by `sub` only, so an email change on either side cannot move a sign-in to
+  another account, and a bound account is never re-bound.
+- Unverified emails (`email_verified` not true) are refused by default
+  (`OIDC_REQUIRE_VERIFIED_EMAIL=true`).
+- Unknown emails: an open invitation for the email is honoured with its role;
+  on an empty instance the first SSO user becomes administrator (unless
+  `REGISTRATION_MODE=disabled`); otherwise refused unless
+  `OIDC_AUTO_CREATE=true`, which creates a `USER`. SSO-created accounts have no
+  usable password.
+- Roles are managed in BrewCore only; provider groups are not mapped.
+- Password sign-in stays available by default. `AUTH_PASSWORD_LOGIN=false`
+  makes SSO the only way in, with an administrators-only break-glass form at
+  `/login?local=1`; it is ignored while SSO is not fully configured.
+- Single logout (RP-initiated, `id_token_hint` kept on the `Session` row) is on
+  by default (`OIDC_SINGLE_LOGOUT=true`).
+- BrewCore addition: the `next` path of the sign-in page rides along in the
+  flow cookie (validated by `safeNextPath`), as it does for password sign-in.
+- A single sign-on session skips the password-change gate, since it did not use
+  the temporary password the gate exists to retire.
+
 ---
 
 ## 47. Registration
